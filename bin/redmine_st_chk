@@ -1,0 +1,37 @@
+#!/usr/bin/env ruby
+# encoding: utf-8
+
+require 'trinity'
+require 'daemons'
+
+require 'trollop'
+
+opts = Trollop::options do
+  opt :config, "Config file", :type => :string
+end
+
+Trollop::die :config, "Config file not found" unless File.exist?(opts[:config]) if opts[:config]
+
+config = YAML.load(File.open(opts[:config]))
+
+project_name = 'tvkinoradio-web'
+query_id = 79
+
+issues = Trinity::Redmine.fetch_issues_by_filter_id(nil, query_id)
+
+issues.each do |issue|
+
+  next if issue.assigned_to.id.eql? issue.author.id
+
+  date = Date.parse(Time.now.to_s)
+
+  note = "#{issue.author.name}, ваша задача требует проверки. Установлена новая дата выполнения.";
+
+  issue.done_ratio = 100
+  issue.due_date = date.strftime('%Y-%m-%d')
+  issue.assigned_to_id = issue.author.id
+  issue.notes = note
+
+  issue.save
+
+end

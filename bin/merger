@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+# encoding: utf-8
+
+require 'trinity'
+require 'daemons'
+
+require 'trollop'
+
+opts = Trollop::options do
+  opt :config, "Config file", :type => :string
+end
+
+Trollop::die :config, "Config file not found" unless File.exist?(opts[:config]) if opts[:config]
+
+config = YAML.load(File.open(opts[:config]))
+
+Trinity::Runner.merger(config)
+
+=begin
+Daemons.run_proc('trinity') do
+  Trinity::Runner.start
+end
+=end

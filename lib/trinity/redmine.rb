@@ -53,18 +53,29 @@ module Trinity
   class Redmine
     class << self
 
-      def fetch_issues_by_filter_id(project = nil, query_id)
-        if project.nil?
-          Trinity::Issue.find(:all, :params => {:query_id => query_id, :limit => 999})
-        else
-          Trinity::Issue.find(:all, :params => {:project => project, :query_id => query_id, :limit => 999})
-        end
+      def fetch_issues_by_filter_id(query_id, params)
+
+
+        p = {
+            :query_id => query_id,
+            :limit => 999,
+        }
+
+        p = p.merge(params) if params.is_a?(Hash)
+
+        Trinity::Issue.find(:all, :params => p)
       end
 
       def create_version(project_name, name)
         version = Trinity::Version.create_version(project_name, name)
         version
       end
+
+      def assign_resolved_issues_to_author(query_id)
+
+
+      end
+
     end
 
   end

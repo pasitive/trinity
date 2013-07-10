@@ -12,6 +12,12 @@ Gem::Specification.new do |s|
   s.summary = %q{Trinity automation helper}
   s.description = s.summary
 
+  s.add_dependency('chronic')
+  s.add_dependency('trollop')
+  s.add_dependency('activeresource')
+  s.add_dependency('json')
+  s.add_dependency('daemons')
+
   s.rubyforge_project = "trinity"
 
   s.files += Dir.glob("bin/**/*")

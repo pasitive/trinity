@@ -4,34 +4,51 @@
 require 'trinity'
 require 'daemons'
 
-require 'trollop'
-
-opts = Trollop::options do
-  opt :config, "Config file", :type => :string
-end
-
-Trollop::die :config, "Config file not found" unless File.exist?(opts[:config]) if opts[:config]
-
-config = YAML.load(File.open(opts[:config]))
-
 project_name = 'tvkinoradio-web'
-query_id = 79
 
-issues = Trinity::Redmine.fetch_issues_by_filter_id(nil, query_id)
+Daemons.run_proc('redmine_st_chk') do
 
-issues.each do |issue|
+  loop do
 
-  next if issue.assigned_to.id.eql? issue.author.id
+    # Resolved issues not assigned to author
+    query_id = 79
+    issues = Trinity::Redmine.fetch_issues_by_filter_id(query_id, {})
 
-  date = Date.parse(Time.now.to_s)
+    issues.each do |issue|
 
-  note = "#{issue.author.name}, ваша задача требует проверки. Установлена новая дата выполнения.";
+      next if issue.assigned_to.id.eql? issue.author.id
 
-  issue.done_ratio = 100
-  issue.due_date = date.strftime('%Y-%m-%d')
-  issue.assigned_to_id = issue.author.id
-  issue.notes = note
+      date = Date.parse(Time.now.to_s)
+      note = 'Ваша задача требует проверки. Установлена новая дата выполнения.';
 
-  issue.save
+      issue.done_ratio = 100
+      issue.due_date = date.strftime('%Y-%m-%d')
+      issue.assigned_to_id = issue.author.id
+      issue.notes = note
 
-end
+      issue.save
+    end
+
+    # Issues with changesets detected but not assigned
+    query_id = 80
+    issues = Trinity::Redmine.fetch_issues_by_filter_id(query_id, {:project_id => project_name})
+
+    issues.each do |issue|
+
+      current = Trinity::Issue.find(issue.id, :params => {:include => 'changesets'})
+
+      if !current.changesets.empty? && current.changesets.first.user.id
+        next if current.assigned_to.id = current.changesets.first.user.id
+        current.assigned_to_id = current.changesets.first.user.id
+        current.notes = 'Исполнителем задачи назначем автор первого коммита.'
+        current.save
+      end
+
+    end
+
+    puts "Sleep for a while..."
+    sleep 300
+
+  end #end loop
+
+end #end proc

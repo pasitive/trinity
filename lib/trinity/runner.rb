@@ -65,7 +65,7 @@ module Trinity
         puts 'Begin merging features'
 
         puts 'Fetching issues and remote branches'
-        issues_to_build = Trinity::Redmine.fetch_issues_by_filter_id(project_name, query_id)
+        issues_to_build = Trinity::Redmine.fetch_issues_by_filter_id(query_id, {:project => project_name})
 
         merged = []
         conflicts = []

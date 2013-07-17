@@ -23,7 +23,7 @@ Gem::Specification.new do |s|
   s.files += Dir.glob("bin/**/*")
   s.files += Dir.glob("lib/**/*.rb")
 
-  s.executables = %w(merger redmine_st_chk)
+  s.executables = %w(trinity redmine_st_chk rebuilder)
 
   s.require_paths = ["lib"]
 

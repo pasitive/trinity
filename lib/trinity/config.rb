@@ -1,26 +1,66 @@
 module Trinity
-  class Config
+  module Config
 
-    def initialize
-      $opts[:config] ||= 'config.yaml'
-      raise('Config not found') unless File.exists? $opts[:config]
-      @config = YAML.load(File.open($opts[:config]))
+    # Configuration default values
+    @defaults = {
+        'email_delivery' => nil,
+    }
+
+    @config = nil
+
+    class << self
+
+      # Loads the Trinity configuration file
+      # Valid options:
+      # * :file: the configuration file to load (default: config.yaml)
+      def load(options={})
+        filename = options[:file] || File.join('config.yaml')
+
+        @config = @defaults.dup
+
+        if File.file?(filename)
+          @config.merge!(load_from_yaml(filename))
+        end
+
+        #if @config['email_delivery']
+        #  # Mailer default configuration
+        #  @config['email_delivery'].each do |k, v|
+        #    v.symbolize_keys! if v.respond_to?(:symbolize_keys!)
+        #    ActionMailer::Base.send("#{k}=", v)
+        #  end
+        #end
+
+        @config
+      end
+
+      # Returns a configuration setting
+      def [](name)
+        load unless @config
+        @config[name]
+      end
+
+      private
+
+      def load_from_yaml(filename)
+        yaml = nil
+        begin
+          yaml = YAML::load(File.read(filename))
+        rescue ArgumentError
+          $stderr.puts "Your Trinity configuration file located at #{filename} is not a valid YAML file and could not be loaded."
+          exit 1
+        end
+        conf = {}
+        if yaml.is_a?(Hash)
+          if yaml['default']
+            conf.merge!(yaml['default'])
+          end
+        else
+          $stderr.puts "Your Trinity configuration file located at #{filename} is not a valid Trinity configuration file."
+          exit 1
+        end
+        conf
+      end
+
     end
-
-    @@instance = Trinity::Config.new
-
-    def self.instance
-      return @@instance
-    end
-
-    def projects
-      @config['projects']
-    end
-
-    def global(key)
-      @config['global'][key]
-    end
-
-    private_class_method :new
   end
 end

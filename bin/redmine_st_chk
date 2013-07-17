@@ -46,6 +46,37 @@ Daemons.run_proc('redmine_st_chk') do
 
     end
 
+    # Отклоненные задачи, не назначенные на разработчика, который последним вносил коммит
+    query_id = 88
+    issues = Trinity::Redmine.fetch_issues_by_filter_id(query_id, {:project_id => project_name})
+
+    issues.each do |issue|
+
+      current = Trinity::Issue.find(issue.id, :params => {:include => 'changesets'})
+
+      if !current.changesets.empty? && current.changesets.last.user.id
+
+        if current.assigned_to.id = current.changesets.last.user.id
+          puts
+          puts current.inspect
+          puts current.changesets.inspect
+          puts "Current: #{current.assigned_to.id}, Changeset: #{current.changesets.last.user.id}"
+          puts 'Next...'
+          break
+          next
+        end
+
+        current.assigned_to_id = current.changesets.last.user.id
+        current.notes = "Задача отклонена.\nНеобходимо ее исправить и установить статус Решена.\nПереназначено на разработчика, который делал коммит последним."
+      else
+        current.notes = "Мне не удалось найти разработчика по коммитам к задаче.\nВероятно их никто не делал.\nВам необходимо вручную найти в истории имя разработчика и переназначить задачу на него."
+      end
+
+      #current.save
+
+    end
+
+
     puts "Sleep for a while..."
     sleep 300
 

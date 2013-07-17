@@ -25,6 +25,14 @@ module Trinity
         `git checkout #{branch}`
       end
 
+      def is_branch_pushed(branch)
+        !`git branch -r`.split("\n").map { |n| n.strip.gsub('* ', '') }.select { |b| b.match(branch) }.empty?
+      end
+
+      def is_branch_merged(branch)
+        !`git branch -r --merged`.split("\n").map { |n| n.strip }.select { |b| b.match(branch) }.empty?
+      end
+
     end
   end
 end

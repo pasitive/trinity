@@ -8,6 +8,7 @@ gem 'json'
 gem 'daemons'
 gem 'trollop'
 gem 'chronic'
+gem 'mail'
 
 #gem 'trinity', '>=0.0.1', :path => '/Users/denisboldinov/Desktop/trinity', :group => :development
 

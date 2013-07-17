@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+# encoding: utf-8
+
+require 'trinity'
+$trinity_load = true
+Trinity::CLI.start(ARGV)

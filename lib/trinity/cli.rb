@@ -69,18 +69,20 @@ module Trinity
 
     def foo
 
-      issue = Trinity::Redmine::Issue.find(4257, :params => {:include => 'relations'})
 
-      if !issue.respond_to? 'relations'
-        nil
-      else
-        issues = issue.relations.select { |relation| (relation.issue_id != issue.id and relation.relation_type.to_s.eql? 'blocks') }
+      m = Object.new
+
+      case m.class
+        when Object
+          p 'Object'
+        when Fixnum
+          p 'Number'
+        else
+          p 'Undefined'
       end
 
-      issues.each do |issue|
-        p issue.id
-      end
 
+      abort
 
       issue = Trinity::Redmine::Issue.find(4257, :params => {:include => 'relations'})
 

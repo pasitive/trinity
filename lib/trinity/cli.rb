@@ -27,35 +27,14 @@ module Trinity
         :empty_build => 'RELEASE_STATUS_EMPTY_BUILD',
     }
 
-    TYPE_RELATES = "relates"
-    TYPE_DUPLICATES = "duplicates"
-    TYPE_DUPLICATED = "duplicated"
     TYPE_BLOCKS = "blocks"
     TYPE_BLOCKED = "blocked"
-    TYPE_PRECEDES = "precedes"
-    TYPE_FOLLOWS = "follows"
-    TYPE_COPIED_TO = "copied_to"
-    TYPE_COPIED_FROM = "copied_from"
 
     TYPES = {
-        TYPE_RELATES => {:name => :label_relates_to, :sym_name => :label_relates_to,
-                         :order => 1, :sym => TYPE_RELATES},
-        TYPE_DUPLICATES => {:name => :label_duplicates, :sym_name => :label_duplicated_by,
-                            :order => 2, :sym => TYPE_DUPLICATED},
-        TYPE_DUPLICATED => {:name => :label_duplicated_by, :sym_name => :label_duplicates,
-                            :order => 3, :sym => TYPE_DUPLICATES, :reverse => TYPE_DUPLICATES},
         TYPE_BLOCKS => {:name => :label_blocks, :sym_name => :label_blocked_by,
                         :order => 4, :sym => TYPE_BLOCKED},
         TYPE_BLOCKED => {:name => :label_blocked_by, :sym_name => :label_blocks,
                          :order => 5, :sym => TYPE_BLOCKS, :reverse => TYPE_BLOCKS},
-        TYPE_PRECEDES => {:name => :label_precedes, :sym_name => :label_follows,
-                          :order => 6, :sym => TYPE_FOLLOWS},
-        TYPE_FOLLOWS => {:name => :label_follows, :sym_name => :label_precedes,
-                         :order => 7, :sym => TYPE_PRECEDES, :reverse => TYPE_PRECEDES},
-        TYPE_COPIED_TO => {:name => :label_copied_to, :sym_name => :label_copied_from,
-                           :order => 8, :sym => TYPE_COPIED_FROM},
-        TYPE_COPIED_FROM => {:name => :label_copied_from, :sym_name => :label_copied_to,
-                             :order => 9, :sym => TYPE_COPIED_TO, :reverse => TYPE_COPIED_TO}
     }.freeze
 
     def initialize(*)
@@ -69,32 +48,6 @@ module Trinity
 
     def foo
 
-
-      m = Object.new
-
-      case m.class
-        when Object
-          p 'Object'
-        when Fixnum
-          p 'Number'
-        else
-          p 'Undefined'
-      end
-
-
-      abort
-
-      issue = Trinity::Redmine::Issue.find(4257, :params => {:include => 'relations'})
-
-      issue.relations.each do |relation|
-        if TYPES[relation.relation_type]
-          if relation.issue_id == issue.id
-            p " + #{issue.id} #{relation.relation_type} #{relation.issue_to_id}"
-          else
-            p " - #{issue.id} #{TYPES[relation.relation_type][:sym]} #{relation.issue_id}"
-          end
-        end
-      end
 
     end
 
@@ -144,7 +97,7 @@ module Trinity
 
                   issues = Trinity::Redmine.fetch_issues({:project_id => options[:project_name], :fixed_version_id => version.id})
                   issues.select { |i| i.status.id.to_i.eql? @config['redmine']['status']['on_prerelease_ok'] }.each do |issue|
-                    issue.notes = "Задача полностью реализована в версии #{version_name}"
+                    issue.notes = "Задача ##{issue.id} полностью реализована в версии #{version_name}"
                     issue.status_id = @config['redmine']['status']['closed']
                     issue.save
                   end
@@ -219,6 +172,9 @@ module Trinity
         issue = ret[:issue]
         status = ret[:merge_status]
 
+        # @todo change status & fixed_version_id of related issues
+        related_blocked_issue_ids = Trinity::Redmine::Issue.find_related_blocked_ids(issue.id)
+
         if status.eql? @@merge_statuses[:ok]
           @log.info 'Changing issue parameters'
           @log.info "Version ID: #{version.id}"
@@ -226,18 +182,37 @@ module Trinity
           issue.fixed_version_id = version.id
           @log.info "Status ID: #{@config['redmine']['status']['on_prerelease']}"
           issue.status_id = @config['redmine']['status']['on_prerelease']
+
+          if !related_blocked_issue_ids.nil?
+            related_blocked_issue_ids.each do |issue_id|
+
+              related_issue = Trinity::Redmine::Issue.find(issue_id)
+
+              @log.info "Loaded related issue #{related_issue.id}"
+
+              # если связная задача стоит в статусе In-Shot-Ok то мы ее тоже переводим в On Prerelease
+              if related_issue.status.id.to_i.eql? @config['redmine']['status']['in_shot_ok']
+                @log.info "Changing parameters #{related_issue.id}"
+                related_issue.notes = "Переведена в статус, соответствующий статусу задачи ##{issue_id}"
+                related_issue.fixed_version_id = version.id
+                related_issue.status_id = @config['redmine']['status']['on_prerelease']
+                related_issue.save
+              end
+            end
+          end
+
         elsif status.eql? @@merge_statuses[:conflict]
           issue.priority_id = @config['redmine']['priority']['critical']
           @log.info "Status ID: #{@config['redmine']['status']['reopened']}"
           issue.status_id = @config['redmine']['status']['reopened'] # Отклонена
+
+          # @todo Reated issues?
         end
 
         @log.info "Saving issue"
         issue.save
 
         @log.info status.inspect if options[:verbose]
-
-        # @todo change status & fixed_version_id of related issues
 
         log_block("Feature #{issue.id} merge", 'end')
 
@@ -525,7 +500,7 @@ module Trinity
               issue.assigned_to_id = current.changesets.last.user.id
               issue.notes = "Имеются неразрашенные конфликты.\nНеобходимо слить ветку задачи #{related_branch} и ветку master.\n#{merge_status}"
             else
-              issue.notes = "Имеются неразрашенные конфликты.\nНужно слить ветку задачи #{related_branch} и ветку master.\n#{merge_status}"
+              issue.notes = "ВАЖНО! Нужно вручную назначить разработчика. Имеются неразрашенные конфликты.\nНужно слить ветку задачи #{related_branch} и ветку master.\n#{merge_status}"
             end
 
             ret[:merge_status] = @@merge_statuses[:conflict]

@@ -1,4 +1,6 @@
 module Trinity
-  class Issue < RestAPI
+  module Redmine
+    class Issue < RestAPI
+    end
   end
 end

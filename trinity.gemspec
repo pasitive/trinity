@@ -17,13 +17,17 @@ Gem::Specification.new do |s|
   s.add_dependency('activeresource')
   s.add_dependency('json')
   s.add_dependency('daemons')
+  s.add_dependency('mail')
+  s.add_dependency('thor')
+  s.add_dependency('rake')
+  s.add_dependency('xmpp4r')
 
   s.rubyforge_project = "trinity"
 
   s.files += Dir.glob("bin/**/*")
   s.files += Dir.glob("lib/**/*.rb")
 
-  s.executables = %w(trinity redmine_st_chk rebuilder)
+  s.executables = %w(trinity redmine_st_chk)
 
   s.require_paths = ["lib"]
 

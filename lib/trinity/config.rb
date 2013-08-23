@@ -14,6 +14,7 @@ module Trinity
       # Valid options:
       # * :file: the configuration file to load (default: config.yaml)
       def load(options={})
+
         filename = options[:file] || File.join('config.yaml')
 
         @config = @defaults.dup
@@ -22,13 +23,15 @@ module Trinity
           @config.merge!(load_from_yaml(filename))
         end
 
-        #if @config['email_delivery']
-        #  # Mailer default configuration
-        #  @config['email_delivery'].each do |k, v|
-        #    v.symbolize_keys! if v.respond_to?(:symbolize_keys!)
-        #    ActionMailer::Base.send("#{k}=", v)
-        #  end
-        #end
+        if @config['email_delivery']
+          @config['email_delivery'].each do |k, v|
+            v.symbolize_keys! if v.respond_to?(:symbolize_keys!)
+          end
+          c = @config['email_delivery']
+          Mail.defaults do
+            delivery_method c['delivery_method'], c['smtp_settings']
+          end
+        end
 
         @config
       end

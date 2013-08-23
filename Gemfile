@@ -9,6 +9,8 @@ gem 'daemons'
 gem 'trollop'
 gem 'chronic'
 gem 'mail'
+gem 'god'
+gem 'xmpp4r'
 
 #gem 'trinity', '>=0.0.1', :path => '/Users/denisboldinov/Desktop/trinity', :group => :development
 

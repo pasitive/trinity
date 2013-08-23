@@ -2,13 +2,17 @@
 # encoding: utf-8
 
 require 'trinity'
-require 'daemons'
 
 project_name = 'tvkinoradio-web'
+qa_users = %w(55)
 
-Daemons.run_proc('redmine_st_chk') do
+per_issue_sleep_delay = 0.5
 
-  loop do
+loop do
+
+  begin
+
+    issues = []
 
     # Resolved issues not assigned to author
     query_id = 79
@@ -16,6 +20,7 @@ Daemons.run_proc('redmine_st_chk') do
 
     issues.each do |issue|
 
+      next if !issue.respond_to? 'assigned_to'
       next if issue.assigned_to.id.eql? issue.author.id
 
       date = Date.parse(Time.now.to_s)
@@ -27,6 +32,8 @@ Daemons.run_proc('redmine_st_chk') do
       issue.notes = note
 
       issue.save
+
+      sleep per_issue_sleep_delay
     end
 
     # Issues with changesets detected but not assigned
@@ -35,7 +42,7 @@ Daemons.run_proc('redmine_st_chk') do
 
     issues.each do |issue|
 
-      current = Trinity::Issue.find(issue.id, :params => {:include => 'changesets'})
+      current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets'})
 
       if !current.changesets.empty? && current.changesets.first.user.id
         next if current.assigned_to.id = current.changesets.first.user.id
@@ -44,42 +51,71 @@ Daemons.run_proc('redmine_st_chk') do
         current.save
       end
 
+      sleep per_issue_sleep_delay
     end
 
-    # Отклоненные задачи, не назначенные на разработчика, который последним вносил коммит
+    # time_to qa
+    query_id = 91
+    issues = Trinity::Redmine.fetch_issues_by_filter_id(query_id, {:project_id => project_name})
+
+    date = Date.parse(Time.now.to_s)
+
+    issues.each do |issue|
+      if !issue.assigned_to.nil?
+        next if qa_users.include?(issue.assigned_to.id)
+      end
+
+      issue.assigned_to_id = qa_users.sample(1).join
+      issue.due_date = date.strftime('%Y-%m-%d')
+      issue.notes = 'Задача проверена менеджером. Требует QA.'
+      issue.save
+
+      sleep per_issue_sleep_delay
+    end
+
+
+    # TODO Отклоненные задачи, не назначенные на разработчика, который последним вносил коммит
+
     query_id = 88
     issues = Trinity::Redmine.fetch_issues_by_filter_id(query_id, {:project_id => project_name})
 
     issues.each do |issue|
 
-      current = Trinity::Issue.find(issue.id, :params => {:include => 'changesets'})
+      current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets'})
 
-      if !current.changesets.empty? && current.changesets.last.user.id
+      if current.respond_to? 'assigned_to'
 
-        if current.assigned_to.id = current.changesets.last.user.id
-          puts
-          puts current.inspect
-          puts current.changesets.inspect
-          puts "Current: #{current.assigned_to.id}, Changeset: #{current.changesets.last.user.id}"
-          puts 'Next...'
-          break
-          next
+        assigned_to_id = current.assigned_to.id
+
+        if current.changesets.last.respond_to? 'user'
+          last_user_id = current.changesets.last.user.id
+          current.notes = "Задача отклонена.\nНеобходимо ее исправить и установить статус Решена.\nПереназначено на разработчика, который делал коммит последним."
+          current.assigned_to_id = last_user_id
+        else
+          next if current.priority.id.to_i.eql? 6
+          current.notes = "Мне не удалось найти разработчика по коммитам к задаче.\nВероятно их никто не делал.\nВам необходимо вручную найти в истории имя разработчика и переназначить задачу на него."
         end
 
-        current.assigned_to_id = current.changesets.last.user.id
-        current.notes = "Задача отклонена.\nНеобходимо ее исправить и установить статус Решена.\nПереназначено на разработчика, который делал коммит последним."
+        puts current.notes
+
+        puts "Current: #{assigned_to_id}"
+        puts "Changeset: #{last_user_id}"
       else
-        current.notes = "Мне не удалось найти разработчика по коммитам к задаче.\nВероятно их никто не делал.\nВам необходимо вручную найти в истории имя разработчика и переназначить задачу на него."
+        current.assigned_to_id = current.author.id
+        current.notes = "Задача была отклонена и ни на кого не назначена.\nПереназначена на автора."
       end
 
-      #current.save
+      current.priority_id = 6
+      current.save
 
     end
 
-
+  rescue ActiveResource::ServerError => e
+    puts "We have problem while handling response from Redmine server. Sleep for a while."
+    sleep 60
+  ensure
     puts "Sleep for a while..."
-    sleep 300
+    sleep 30
+  end
 
-  end #end loop
-
-end #end proc
+end #end loop

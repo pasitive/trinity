@@ -27,6 +27,37 @@ module Trinity
         :empty_build => 'RELEASE_STATUS_EMPTY_BUILD',
     }
 
+    TYPE_RELATES = "relates"
+    TYPE_DUPLICATES = "duplicates"
+    TYPE_DUPLICATED = "duplicated"
+    TYPE_BLOCKS = "blocks"
+    TYPE_BLOCKED = "blocked"
+    TYPE_PRECEDES = "precedes"
+    TYPE_FOLLOWS = "follows"
+    TYPE_COPIED_TO = "copied_to"
+    TYPE_COPIED_FROM = "copied_from"
+
+    TYPES = {
+        TYPE_RELATES => {:name => :label_relates_to, :sym_name => :label_relates_to,
+                         :order => 1, :sym => TYPE_RELATES},
+        TYPE_DUPLICATES => {:name => :label_duplicates, :sym_name => :label_duplicated_by,
+                            :order => 2, :sym => TYPE_DUPLICATED},
+        TYPE_DUPLICATED => {:name => :label_duplicated_by, :sym_name => :label_duplicates,
+                            :order => 3, :sym => TYPE_DUPLICATES, :reverse => TYPE_DUPLICATES},
+        TYPE_BLOCKS => {:name => :label_blocks, :sym_name => :label_blocked_by,
+                        :order => 4, :sym => TYPE_BLOCKED},
+        TYPE_BLOCKED => {:name => :label_blocked_by, :sym_name => :label_blocks,
+                         :order => 5, :sym => TYPE_BLOCKS, :reverse => TYPE_BLOCKS},
+        TYPE_PRECEDES => {:name => :label_precedes, :sym_name => :label_follows,
+                          :order => 6, :sym => TYPE_FOLLOWS},
+        TYPE_FOLLOWS => {:name => :label_follows, :sym_name => :label_precedes,
+                         :order => 7, :sym => TYPE_PRECEDES, :reverse => TYPE_PRECEDES},
+        TYPE_COPIED_TO => {:name => :label_copied_to, :sym_name => :label_copied_from,
+                           :order => 8, :sym => TYPE_COPIED_FROM},
+        TYPE_COPIED_FROM => {:name => :label_copied_from, :sym_name => :label_copied_to,
+                             :order => 9, :sym => TYPE_COPIED_TO, :reverse => TYPE_COPIED_TO}
+    }.freeze
+
     def initialize(*)
       super
       @config = Trinity::Config.load({:file => options[:config]})
@@ -37,10 +68,32 @@ module Trinity
     desc 'foo', 'Foo method'
 
     def foo
-      current = Trinity::Redmine::Issue.find(3831, :params => {:include => 'relations'})
 
-      p current.respond_to? 'relations'
-      p current.relations.empty?
+      issue = Trinity::Redmine::Issue.find(4257, :params => {:include => 'relations'})
+
+      if !issue.respond_to? 'relations'
+        nil
+      else
+        issues = issue.relations.select { |relation| (relation.issue_id != issue.id and relation.relation_type.to_s.eql? 'blocks') }
+      end
+
+      issues.each do |issue|
+        p issue.id
+      end
+
+
+      issue = Trinity::Redmine::Issue.find(4257, :params => {:include => 'relations'})
+
+      issue.relations.each do |relation|
+        if TYPES[relation.relation_type]
+          if relation.issue_id == issue.id
+            p " + #{issue.id} #{relation.relation_type} #{relation.issue_to_id}"
+          else
+            p " - #{issue.id} #{TYPES[relation.relation_type][:sym]} #{relation.issue_id}"
+          end
+        end
+      end
+
     end
 
     desc 'merge', 'Helper utility to merge branches'

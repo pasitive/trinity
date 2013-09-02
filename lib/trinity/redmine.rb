@@ -5,11 +5,14 @@ module Trinity
 
     require 'trinity/redmine/rest_api'
     require 'trinity/redmine/issue'
+    require 'trinity/redmine/users'
+    require 'trinity/redmine/groups'
     require 'trinity/redmine/version'
 
     ActiveResource::Base.logger = Logger.new(STDERR)
 
     class << self
+
       def fetch_issues(params)
         p = {
             :limit => 999,

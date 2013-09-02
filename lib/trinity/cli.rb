@@ -44,11 +44,36 @@ module Trinity
       @log.info 'Initialization - OK'
     end
 
-    desc 'foo', 'Foo method'
 
-    def foo
+    desc 'transition', 'Help to check statuses & transitions'
 
-
+    def transition
+      loop do
+        begin
+          @config['transitions'].each do |project, transitions|
+            applog(:info, "Processing project: #{project}")
+            transitions.each do |tn, params|
+              applog(:info, "Processing transition #{tn}")
+              t = Trinity::Transition.generate(tn)
+              t.config = @config
+              issues = Trinity::Redmine.fetch_issues_by_filter_id(params['query_id'], {:project_id => project})
+              applog(:info, "Issues loaded: #{issues.count}")
+              issues.each do |issue|
+                t.handle(issue) if t.check(issue, params)
+                notify(t.notify, t.notes) if t.check(issue, params)
+              end
+            end
+          end
+        rescue ActiveResource::ServerError => e
+          puts "We have problem while handling response from Redmine server. Sleep for a while."
+          sleep 60
+        rescue Exception => e
+          applog(:warn, e.message)
+        ensure
+          puts "Sleep for a while..."
+          sleep 30
+        end
+      end
     end
 
     desc 'merge', 'Helper utility to merge branches'
@@ -56,6 +81,9 @@ module Trinity
     method_option :query_id, :required => true, :aliases => '-q', :desc => 'Query id for ready to QA features'
 
     def cycle
+
+      #notify(['Denis', 'devel'], 'Test message')
+      #abort
 
       @log.info 'Start workflow cycle'
 
@@ -226,7 +254,8 @@ module Trinity
       return true
     end
 
-    desc 'rebuild PROJECT_NAME BRANCH_NAME', 'Helper utility to rebuild build branches'
+    desc 'rebuild PROJECT_NAME BRANCH_NAME STATUS', 'Helper utility to rebuild build branches'
+    method_option :skip_status, :default => false, :type => :boolean, :aliases => '-s', :desc => 'Skip statuses'
 
     def rebuild(project_name, branch, status = 'open')
 
@@ -257,7 +286,7 @@ module Trinity
               @config['redmine']['status']['on_prerelease_ok']
           ]
 
-          if correct_status.include?(issue.status.id.to_i)
+          if correct_status.include?(issue.status.id.to_i) or options[:skip_status]
             @log.info "Merging issue: #{issue.id} v#{issue.fixed_version.name}"
 
             ret = merge_feature_branch(issue, version)
@@ -425,28 +454,23 @@ module Trinity
 
           @log.info 'Time to QA build.'
 
-          @log.info 'Locking version'
-          Trinity::Redmine::Version.prefix = '/'
-          version.status = 'locked'
-          version.save
-
           `git push origin #{build}`
           `git checkout master`
           `git branch -D #{build}`
 
           @log.info "Deleted branch #{build}"
 
-          @log.info "Sending notifications to #{@config['notification']['recepients'].join(',')}"
-          @config['notification']['recepients'].each do |recipient|
-            Mail.deliver do
-              from 'trinity@happylab.ru'
-              to recipient
-              subject "#{project_name} // build info"
-              content_type 'text/html; charset=UTF-8'
-              body "Build <a href='http://r.itcreativoff.com/versions/#{version.id}'>#{build}</a> is ready for QA in http://tvkinoradio.pre.itcreativoff.com"
-            end
-            @log.info "The message was send to #{recipient}" if options[:verbose]
-          end
+          #@log.info "Sending notifications to #{@config['notification']['recepients'].join(',')}"
+          #@config['notification']['recepients'].each do |recipient|
+          #  Mail.deliver do
+          #    from 'trinity@happylab.ru'
+          #    to recipient
+          #    subject "#{project_name} // build info"
+          #    content_type 'text/html; charset=UTF-8'
+          #    body "Build <a href='http://r.itcreativoff.com/versions/#{version.id}'>#{build}</a> is ready for QA in http://tvkinoradio.pre.itcreativoff.com"
+          #  end
+          #  @log.info "The message was send to #{recipient}" if options[:verbose]
+          #end
 
         else
           `git checkout #{build}`
@@ -566,6 +590,47 @@ module Trinity
 
     def log_block(name, state)
       @log.info "[============================= #{name}: #{state} ===============================]"
+    end
+
+    # Notify all recipients of the given condition with the specified message.
+    #
+    # condition - The Condition.
+    # message   - The String message to send.
+    #
+    # Returns nothing.
+    def notify(notify, message)
+
+      spec = Contact.normalize(notify)
+      unmatched = []
+
+      # Resolve contacts.
+      resolved_contacts =
+          spec[:contacts].inject([]) do |acc, contact_name_or_group|
+            cons = Array(Trinity.contacts[contact_name_or_group] || Trinity.contact_groups[contact_name_or_group])
+            unmatched << contact_name_or_group if cons.empty?
+            acc += cons
+            acc
+          end
+
+      # Warn about unmatched contacts.
+      unless unmatched.empty?
+        msg = "no matching contacts for '#{unmatched.join(", ")}'"
+        applog(:warn, msg)
+      end
+
+      # Notify each contact.
+      resolved_contacts.each do |c|
+        host = `hostname`.chomp rescue 'none'
+        begin
+          c.notify(message, Time.now, spec[:priority], spec[:category], host)
+          msg = "#{c.info ? c.info : "notification sent for contact: #{c.name}"}"
+          applog(:info, msg % [])
+        rescue Exception => e
+          applog(:error, "#{e.message} #{e.backtrace}")
+          msg = "Failed to deliver notification for contact: #{c.name}"
+          applog(:error, msg % [])
+        end
+      end
     end
 
   end

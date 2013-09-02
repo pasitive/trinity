@@ -13,13 +13,9 @@ Gem::Specification.new do |s|
   s.description = s.summary
 
   s.add_dependency('chronic')
-  s.add_dependency('trollop')
   s.add_dependency('activeresource')
-  s.add_dependency('json')
-  s.add_dependency('daemons')
   s.add_dependency('mail')
   s.add_dependency('thor')
-  s.add_dependency('rake')
   s.add_dependency('xmpp4r')
 
   s.rubyforge_project = "trinity"
@@ -27,11 +23,11 @@ Gem::Specification.new do |s|
   s.files += Dir.glob("bin/**/*")
   s.files += Dir.glob("lib/**/*.rb")
 
-  s.executables = %w(trinity redmine_st_chk)
+  s.executables = %w(trinity)
 
   s.require_paths = ["lib"]
 
   # specify any dependencies here; for example:
-  s.add_development_dependency "rspec"
+  #s.add_development_dependency "rspec"
   # s.add_runtime_dependency "rest-client"
 end

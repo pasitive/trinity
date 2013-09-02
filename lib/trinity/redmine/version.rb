@@ -4,7 +4,6 @@ module Trinity
       class << self
 
         def create_version(project_name, name)
-
           params = {
               :project_id => project_name,
               :name => name
@@ -15,25 +14,13 @@ module Trinity
           rescue ArgumentError => e
             throw e
           end
-          version = Trinity::Redmine::Version.new(params)
-          version.due_date = date.strftime('%Y-%m-%d')
-          need_save = true
 
-          self.prefix = '/projects/' + project_name + '/'
-          self.find(:all).each do |v|
-            if v.name.eql? name and v.status.eql? "open"
-              need_save = false
-              version = v
-              puts "Found created version #{v.name}"
-              break
-            end
-          end
+          version = self.find_version(project_name, name, 'open')
 
-          if need_save
+          if version.nil?
+            version = self.new(params)
+            version.due_date = date.strftime('%Y-%m-%d')
             version.save
-            puts "Created version #{version.id} #{version.name}"
-          else
-            puts "Loaded version #{version.id} #{version.name}"
           end
 
           version
@@ -42,7 +29,6 @@ module Trinity
         def find_version(project_name, branch, status = 'open')
           versions = self.fetch_versions(project_name, status)
           version = nil
-          self.prefix = '/projects/' + project_name + '/'
           versions.each do |v|
             v.name.strip!
             v.status.strip!

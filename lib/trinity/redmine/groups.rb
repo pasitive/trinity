@@ -1,6 +1,6 @@
 module Trinity
   module Redmine
-    class RestAPI < ActiveResource::Base
+    class Groups < RestAPI
     end
   end
 end

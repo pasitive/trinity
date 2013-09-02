@@ -1,0 +1,51 @@
+default:
+  email_delivery:
+    delivery_method: :smtp # Other not supported
+    smtp_settings:
+      address: smtp.gmail.com
+      port: 587
+      domain: happylab.ru
+      user_name: support@happylab.ru
+      password:
+      authentication: plain
+      enable_starttls_auto: true
+
+  redmine:
+    connection:
+      site: 'http://r.itcreativoff.com'
+      user: trinity
+      password:
+      format: xml
+    status:
+      in_shot_ok: 13
+      on_prerelease: 16
+      on_prerelease_ok: 15
+      reopened: 6
+      closed: 5
+    priority:
+      critical: 6
+
+  notification:
+    jabber:
+      host: talk.google.com
+      port: 5222
+      from_jid: support@happylab.ru
+      password:
+    groups:
+      qa:
+        - denis.a.boldinov@gmail.com/Denis
+      devel:
+        - d.boldinov@happylab.ru/Deniss
+
+  transitions:
+    tvkinoradio-web:
+      assign_to_author:
+        query_id: 79
+#      time_to_qa:
+#        query_id: 91
+#        qa_group_id: 53
+      not_assigned_with_commits:
+        query_id: 80
+      rejected_with_commits:
+        query_id: 88
+

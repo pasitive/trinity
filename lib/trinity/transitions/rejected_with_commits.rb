@@ -1,12 +1,13 @@
 # encoding: utf-8
 
-# TODO
+# Отклоненные задачи. Пытаемся найти разработчика по коммитам.
 
 module Trinity
   module Transitions
     class RejectedWithCommits < Transition
 
       def initialize
+        super
       end
 
       def check(issue, params)
@@ -29,7 +30,9 @@ module Trinity
 
         if current.changesets.last.respond_to? 'user'
           last_user_id = current.changesets.last.user.id
-          self.notes = issue.notes = "Задача #{self.issue_link(issue)} отклонена.\nНеобходимо ее исправить и установить статус Решена.\nПереназначено на разработчика, который делал коммит последним."
+          self.notes = issue.notes = "Задача #{self.issue_link(issue)} отклонена.\n
+                                      Необходимо ее исправить и установить статус Решена.\n
+                                      Переназначено на разработчика, который делал коммит последним."
           issue.assigned_to_id = last_user_id
           user = Trinity::Redmine::Users.find(last_user_id)
         else
@@ -50,6 +53,7 @@ module Trinity
 
         self.notify << user.login
 
+        issue
       end
 
     end

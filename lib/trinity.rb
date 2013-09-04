@@ -32,6 +32,10 @@ require 'trinity/transitions/assign_to_author'
 require 'trinity/transitions/not_assigned_with_commits'
 require 'trinity/transitions/time_to_qa'
 require 'trinity/transitions/rejected_with_commits'
+require 'trinity/transitions/flow_merge_ok'
+require 'trinity/transitions/flow_merge_conflict'
+require 'trinity/transitions/flow_reject_from_build'
+require 'trinity/transitions/flow_release'
 
 # App wide logging system
 LOG = Logger.new(STDOUT)

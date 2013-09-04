@@ -47,34 +47,19 @@ module Trinity
           d.password = @config['notification']['jabber']['password']
         end
 
-        # TODO consolidate this shit
-
-        if @config['notification']['groups']['qa'] and @config['notification']['groups']['qa'].respond_to? 'each'
-          @config['notification']['groups']['qa'].each do |buf|
-            to_jid = buf.split('/')[0]
-            name = buf.split('/')[1]
-
-            Trinity.contact(:jabber) do |c|
-              c.name = name
-              c.group = 'qa'
-              c.to_jid = to_jid
+        if @config['notification']['groups']
+          @config['notification']['groups'].each do |group, members|
+            members.each do |name_buf|
+              name = name_buf.split('/').last
+              to_jid = name_buf.split('/').first
+              Trinity.contact(:jabber) do |c|
+                c.name = name
+                c.group = group
+                c.to_jid = to_jid
+              end
             end
           end
         end
-
-        if @config['notification']['groups']['devel'] and @config['notification']['groups']['devel'].respond_to? 'each'
-          @config['notification']['groups']['devel'].each do |buf|
-            to_jid = buf.split('/')[0]
-            name = buf.split('/')[1]
-
-            Trinity.contact(:jabber) do |c|
-              c.name = name
-              c.group = 'devel'
-              c.to_jid = to_jid
-            end
-          end
-        end
-
 
         @config
       end

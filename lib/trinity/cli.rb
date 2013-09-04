@@ -6,7 +6,6 @@ module Trinity
 
     class_option :config, :aliases => '-c', :type => :string, :required => true
     class_option :verbose, :aliases => '-v', :type => :boolean, :default => true
-    class_option :interactive, :aliases => '-i', :type => :boolean, :default => false
     class_option :hours_to_qa, :default => 2, :aliases => '-qa', :desc => "Hours to QA-team to test the build"
 
     @@merge_statuses = {
@@ -40,10 +39,8 @@ module Trinity
     def initialize(*)
       super
       @config = Trinity::Config.load({:file => options[:config]})
-      @log = Logger.new(STDOUT)
-      @log.info 'Initialization - OK'
+      applog :info, 'Initialization - OK'
     end
-
 
     desc 'transition', 'Help to check statuses & transitions'
 
@@ -53,14 +50,19 @@ module Trinity
           @config['transitions'].each do |project, transitions|
             applog(:info, "Processing project: #{project}")
             transitions.each do |tn, params|
-              applog(:info, "Processing transition #{tn}")
               t = Trinity::Transition.generate(tn)
+              applog(:info, "Processing transition #{t.friendly_name}")
               t.config = @config
-              issues = Trinity::Redmine.fetch_issues_by_filter_id(params['query_id'], {:project_id => project})
+              if project.to_s.eql? 'all'
+                issues = Trinity::Redmine.fetch_issues_by_filter_id(params['query_id'], {})
+              else
+                issues = Trinity::Redmine.fetch_issues_by_filter_id(params['query_id'], {:project_id => project})
+              end
               applog(:info, "Issues loaded: #{issues.count}")
               issues.each do |issue|
-                t.handle(issue) if t.check(issue, params)
-                notify(t.notify, t.notes) if t.check(issue, params)
+                check = t.check(issue, params)
+                t.handle(issue) if check
+                notify(t.notify, t.notes) if check
               end
             end
           end
@@ -68,7 +70,7 @@ module Trinity
           puts "We have problem while handling response from Redmine server. Sleep for a while."
           sleep 60
         rescue Exception => e
-          applog(:warn, e.message)
+          applog(:error, "#{e.message} #{e.backtrace}")
         ensure
           puts "Sleep for a while..."
           sleep 30
@@ -76,41 +78,31 @@ module Trinity
       end
     end
 
-    desc 'merge', 'Helper utility to merge branches'
+    desc 'cycle', 'Helper utility to merge branches'
     method_option :project_name, :required => true, :aliases => '-p', :desc => 'Project name'
     method_option :query_id, :required => true, :aliases => '-q', :desc => 'Query id for ready to QA features'
+    method_option :release_locked, :default => false, :aliases => '-r', :desc => 'Release locked versions'
 
     def cycle
-
-      #notify(['Denis', 'devel'], 'Test message')
-      #abort
-
-      @log.info 'Start workflow cycle'
-
+      applog :info, 'Start workflow cycle'
       loop do #Global workflow loop
 
-        if time_to_release
+        if time_to_release or options[:release_locked]
 
-          @log.info "Time to release: #{Time.now.to_s}"
-
+          applog :info, "Time to release: #{Time.now.to_s}"
           versions = Trinity::Redmine::Version.fetch_versions(options[:project_name], 'locked')
 
           if !versions.count.eql? 0
-
-            @log.info 'Start processing versions'
+            applog :info, 'Start processing versions'
 
             versions.each do |version|
-
-              @log.info "Start processing version #{version.name}"
-
+              applog :info, "Start processing version #{version.name}"
               release_status = release options[:project_name], version.name
 
               case release_status
-
                 when @@release_statuses[:empty_build]
                   version.delete
                   break
-
                 else
                   rebuild options[:project_name], version.name, 'locked'
 
@@ -125,9 +117,10 @@ module Trinity
 
                   issues = Trinity::Redmine.fetch_issues({:project_id => options[:project_name], :fixed_version_id => version.id})
                   issues.select { |i| i.status.id.to_i.eql? @config['redmine']['status']['on_prerelease_ok'] }.each do |issue|
-                    issue.notes = "Задача ##{issue.id} полностью реализована в версии #{version_name}"
-                    issue.status_id = @config['redmine']['status']['closed']
-                    issue.save
+                    t = Trinity::Transition.generate('flow_release')
+                    t.config = @config
+                    t.version = version
+                    t.handle(issue) if t.check(issue, {})
                   end
 
                   Trinity::Redmine::Version.prefix = '/'
@@ -137,16 +130,16 @@ module Trinity
 
             end #end processing versions
           else
-            @log.info 'No versions to release'
+            applog :info, 'No versions to release'
           end
         else
-          @log.info "It's not time to release"
+          applog :info, "It's not time to release"
         end
 
         # Merge
         merge options[:project_name], options[:query_id]
 
-        @log.info 'Sleep for 60 seconds'
+        applog :info, 'Sleep for 60 seconds'
         sleep 60
 
       end
@@ -158,10 +151,10 @@ module Trinity
 
       log_block('Merge', 'start')
 
-      @log.info "Project ID: #{project_name}, Query ID: #{query_id}"
+      applog :info, "Project ID: #{project_name}, Query ID: #{query_id}"
 
       # Check if there is a current unmerged build branch.
-      @log.info 'Check if there is current build branch'
+      applog :info, 'Check if there is current build branch'
       regex = /\A\*?\s?build_.*\Z/
       build = `git branch -a`.split("\n").map { |n| n.strip.gsub('* ', '') }.select { |a| regex.match(a) }.last
 
@@ -169,81 +162,36 @@ module Trinity
       version = Trinity::Redmine::Version.find_version(project_name, build)
 
       if version.nil?
-        @log.warn 'Version is nil'
+        applog :warn, 'Version is nil'
         return false
       end
 
       # Prevent merging to master
       if Trinity::Git.current_branch.match('master')
-        @log.warn 'Current branch is master. STOP MERGING DIRECTLY TO MASTER BRANCH'
+        applog :warn, 'Current branch is master. STOP MERGING DIRECTLY TO MASTER BRANCH'
         return false
       end
 
-      @log.info "Current branch is: #{Trinity::Git.current_branch}"
+      applog :info, "Current branch is: #{Trinity::Git.current_branch}"
 
-      @log.info 'Merging master into current branch'
+      applog :info, 'Merging master into current branch'
       `git merge master`
 
-      @log.info 'Begin merging features'
+      applog :info, 'Begin merging features'
 
-      @log.info 'Fetching issues and remote branches'
+      applog :info, 'Fetching issues and remote branches'
       issues_to_build = Trinity::Redmine.fetch_issues_by_filter_id(query_id, {:project_id => project_name})
 
-      @log.info "Issues loaded: #{issues_to_build.count.to_s}"
+      applog :info, "Issues loaded: #{issues_to_build.count.to_s}"
 
       issues_to_build.each do |issue|
 
         log_block("Feature #{issue.id} merge", 'start')
 
         ret = merge_feature_branch(issue, version)
-
-        issue = ret[:issue]
-        status = ret[:merge_status]
-
-        # @todo change status & fixed_version_id of related issues
-        related_blocked_issue_ids = Trinity::Redmine::Issue.find_related_blocked_ids(issue.id)
-
-        if status.eql? @@merge_statuses[:ok]
-          @log.info 'Changing issue parameters'
-          @log.info "Version ID: #{version.id}"
-          # Adding issue into build
-          issue.fixed_version_id = version.id
-          @log.info "Status ID: #{@config['redmine']['status']['on_prerelease']}"
-          issue.status_id = @config['redmine']['status']['on_prerelease']
-
-          if !related_blocked_issue_ids.nil?
-            related_blocked_issue_ids.each do |issue_id|
-
-              related_issue = Trinity::Redmine::Issue.find(issue_id)
-
-              @log.info "Loaded related issue #{related_issue.id}"
-
-              # если связная задача стоит в статусе In-Shot-Ok то мы ее тоже переводим в On Prerelease
-              if related_issue.status.id.to_i.eql? @config['redmine']['status']['in_shot_ok']
-                @log.info "Changing parameters #{related_issue.id}"
-                related_issue.notes = "Переведена в статус, соответствующий статусу задачи ##{issue_id}"
-                related_issue.fixed_version_id = version.id
-                related_issue.status_id = @config['redmine']['status']['on_prerelease']
-                related_issue.save
-              end
-            end
-          end
-
-        elsif status.eql? @@merge_statuses[:conflict]
-          issue.priority_id = @config['redmine']['priority']['critical']
-          @log.info "Status ID: #{@config['redmine']['status']['reopened']}"
-          issue.status_id = @config['redmine']['status']['reopened'] # Отклонена
-
-          # @todo Reated issues?
-        end
-
-        @log.info "Saving issue"
-        issue.save
-
-        @log.info status.inspect if options[:verbose]
+        handle_merge_status(issue, version, ret)
 
         log_block("Feature #{issue.id} merge", 'end')
-
         sleep 2
       end
 
@@ -264,10 +212,10 @@ module Trinity
       version = Trinity::Redmine::Version.find_version project_name, branch, status
 
       if !version.nil?
-        @log.info "Found version: #{version.name} (#{version.id}) [#{version.status}]"
+        applog :info, "Found version: #{version.name} (#{version.id}) [#{version.status}]"
         version_id = version.id.strip.to_i
 
-        @log.info 'Preparing build branch'
+        applog :info, 'Preparing build branch'
 
         `git checkout master`
         `git branch -D #{branch}`
@@ -275,41 +223,42 @@ module Trinity
         `git checkout -b #{branch}`
 
         issues = Trinity::Redmine.fetch_issues({:project_id => project_name, :fixed_version_id => version_id})
-        @log.info "Loaded issues: #{issues.count.to_s}"
+        applog :info, "Loaded issues: #{issues.count.to_s}"
 
         issues.each do |issue|
-          @log.info "Processing issue: #{issue.id} #{issue.subject}"
-          @log.info "Is status correct (On prerelease - OK)?: #{issue.status.id.to_i.eql? @config['redmine']['status']['on_prerelease_ok']}"
+          applog :info, "Processing issue: #{issue.id} #{issue.subject}"
+          applog :info, "Is status correct (On prerelease - OK)?: #{issue.status.id.to_i.eql? @config['redmine']['status']['on_prerelease_ok']}"
 
-          # On prerelease (Status id: 16), On prerelease - OK (Status id: 15)
           correct_status = [
               @config['redmine']['status']['on_prerelease_ok']
           ]
 
           if correct_status.include?(issue.status.id.to_i) or options[:skip_status]
-            @log.info "Merging issue: #{issue.id} v#{issue.fixed_version.name}"
+
+            applog :info, "Merging issue: #{issue.id} v#{issue.fixed_version.name}"
 
             ret = merge_feature_branch(issue, version)
 
-            issue.save if !ret[:merge_status].eql? @@merge_statuses[:ok]
+            if status.eql? @@merge_statuses[:conflict]
+              t = Trinity::Transition.generate('flow_merge_conflict')
+              t.config = @config
+              t.version = version
+              t.handle(issue) if t.check(issue, ret)
+            end
 
-            @log.info ret[:merge_status]
+            applog :info, ret[:merge_status]
           else
-            issue.fixed_version_id = ''
-            @log.info "Removing fixed_version_id: #{issue.fixed_version.id}"
-
-            issue.notes = 'Задача была отклонена. В билд не попадает.'
-            @log.info "Adding notes: #{issue.notes}"
-
-            @log.info "Saving issue"
-            issue.save
+            t = Trinity::Transition.generate('flow_reject_from_build')
+            t.config = @config
+            t.version = version
+            t.handle(issue) if t.check(issue)
           end
         end
 
         `git push origin #{branch}`
 
       else
-        @log.warn "Couldn't find version you supplied"
+        applog :warn, "Couldn't find version you supplied"
       end
 
       log_block('Rebuild', 'end')
@@ -330,34 +279,52 @@ module Trinity
       `git checkout #{version_name}`
 
       issues = Trinity::Redmine.fetch_issues({:project_id => project_name, :fixed_version_id => version.id.to_i})
-      @log.info "Loaded issues: #{issues.count.to_s}" if options[:verbose]
+
+      applog :info, "Loaded issues: #{issues.count.to_s}"
 
       # Check if all issues has right status
       if issues.any? { |i| !i.status.id.to_i.eql? @config['redmine']['status']['on_prerelease_ok'] }
-
-        @log.warn 'We have issues that do not match release status'
-
+        applog :info, 'Some issues in the build are in incorrect status'
         issues.select { |i| !i.status.id.to_i.eql? @config['redmine']['status']['on_prerelease_ok'] }.each do |issue|
-          issue.fixed_version_id = ''
-          issue.notes = "Задача не попадает в билд #{version.name}. Имеет неверный статус."
-          issue.save
+          t = Trinity::Transition.generate('flow_reject_from_build')
+          t.config = @config
+          t.version = version
+          t.handle(issue) if t.check(issue, {})
         end
-
         return @@release_statuses[:need_rebuild]
       elsif issues.count.eql? 0
-        @log.warn 'No issues for build'
+        applog :warn, 'No issues for build'
         return @@release_statuses[:empty_build]
       else
-        @log.info 'Do not need to rebuild'
-
+        applog :info, 'Do not need to rebuild'
         return @@release_statuses[:ok]
       end
 
       log_block('Release', 'end')
-
     end
 
     private
+
+    def handle_merge_status(issue, version, ret)
+
+      case ret[:merge_status]
+        when @@merge_statuses[:ok]
+          t = Trinity::Transition.generate('flow_merge_ok')
+        when @@merge_statuses[:conflict]
+          t = Trinity::Transition.generate('flow_merge_conflict')
+        else
+          t = Trinity::Transition.generate('flow_merge_ok')
+      end
+
+      if t.nil?
+        applog(:fatal, "Could not generate Transition")
+        abort
+      end
+
+      t.config = @config
+      t.version = version
+      t.handle(issue) if t.check(issue, ret)
+    end
 
     def prepare_build(project_name, build)
 
@@ -368,9 +335,9 @@ module Trinity
           :version => nil
       }
 
-      @log.info 'Fetching changes from origin'
+      applog :info, 'Fetching changes from origin'
       `git fetch origin`
-      @log.info 'Current branch is: %s' % Trinity::Git.current_branch
+      applog :info, 'Current branch is: %s' % Trinity::Git.current_branch
 
       # Choosing time for new build branch
       date = choose_date()
@@ -381,20 +348,16 @@ module Trinity
       #  * if build pushed & merged, delete build branch and exit the loop
       #  * if build not pushed & not merged, begin merging features
       #  * if build pushed & not merged but it is time to QA - push build and delete local branch
+
       if build.nil?
-        @log.info 'No current build'
-
+        applog :info, 'No current build'
         build_name = "build_#{date.year}_#{date.month}_#{date.day}_#{date.hour}"
-
         build = Trinity::Git.create_build_branch(date)
         version = Trinity::Redmine.create_version(project_name, build)
-
-        @log.info "Created new build branch #{build_name}"
-
+        applog :info, "Created new build branch #{build_name}"
         return build
       else
-
-        @log.info "We have build #{build}"
+        applog :info, "We have build #{build}"
 
         version = Trinity::Redmine::Version.find_version(project_name, build)
 
@@ -402,75 +365,68 @@ module Trinity
           version = Trinity::Redmine.create_version(project_name, build)
         end
 
-        @log.info "Found version: #{version.name}"
+        applog :info, "Found version: #{version.name}"
 
         if version.nil?
-          @log.fatal 'No version found or loaded'
+          applog :fatal, 'No version found or loaded'
           abort
         end
 
         build_pushed = Trinity::Git.is_branch_pushed(build)
-        @log.info "Check if build is pushed to origin: #{build_pushed.inspect}"
+        applog :info, "Check if build is pushed to origin: #{build_pushed.inspect}"
 
         build_merged = Trinity::Git.is_branch_merged(build, 'master')
-        @log.info "Check if build is already merged: #{build_merged.inspect}"
+        applog :info, "Check if build is already merged: #{build_merged.inspect}"
 
         build_has_no_issues = Trinity::Redmine.fetch_issues({:project_id => project_name, :fixed_version_id => version.id.to_i}).count.eql? 0
-        @log.info "Build has NO issues: #{build_has_no_issues.inspect}"
+        applog :warn, "Build has NO issues: #{build_has_no_issues.inspect}"
 
         if build_pushed
 
-          @log.info 'Build pushed to origin'
+          applog :info, 'Build pushed to origin'
 
           if build_merged and build_has_no_issues
             # New empty build
-            @log.info "Build #{build} has no issues. Switching to #{build} and start merging features"
+            applog :info, "Build #{build} has no issues. Switching to #{build} and start merging features"
             `git checkout #{build}`
           elsif !build_merged
             # New empty build
-            @log.info "Build #{build} is NOT MERGED to master. Switching to #{build} and start merging features"
+            applog :info, "Build #{build} is NOT MERGED to master. Switching to #{build} and start merging features"
             `git checkout #{build}`
           else
-            @log.info "Build #{build} is MERGED to master and PUSHED to origin"
+            applog :info, "Build #{build} is MERGED to master and PUSHED to origin"
 
             `git branch -d #{build}`
-            @log.info "Deleted build branch #{build}"
+            applog :info, "Deleted build branch #{build}"
 
             build = Trinity::Git.create_build_branch(date)
-            @log.info "Created new build branch: #{build}"
+            applog :info, "Created new build branch: #{build}"
 
             return build
           end
 
         else
-          @log.info 'Build NOT pushed to origin. Now pushing'
+          applog :info, 'Build NOT pushed to origin. Now pushing'
           `git push origin #{build}`
         end
 
         time_to_qa = time_to_qa(build, options[:hours_to_qa])
-        @log.info "Is it time to QA build?: #{time_to_qa}"
+
+        applog :info, "Is it time to QA build?: #{time_to_qa}"
 
         if time_to_qa
-
-          @log.info 'Time to QA build.'
+          applog :info, 'Time to QA build.'
 
           `git push origin #{build}`
           `git checkout master`
           `git branch -D #{build}`
 
-          @log.info "Deleted branch #{build}"
+          applog :info, "Deleted branch #{build}"
 
-          #@log.info "Sending notifications to #{@config['notification']['recepients'].join(',')}"
-          #@config['notification']['recepients'].each do |recipient|
-          #  Mail.deliver do
-          #    from 'trinity@happylab.ru'
-          #    to recipient
-          #    subject "#{project_name} // build info"
-          #    content_type 'text/html; charset=UTF-8'
-          #    body "Build <a href='http://r.itcreativoff.com/versions/#{version.id}'>#{build}</a> is ready for QA in http://tvkinoradio.pre.itcreativoff.com"
-          #  end
-          #  @log.info "The message was send to #{recipient}" if options[:verbose]
-          #end
+          message = "Build <a href='http://r.itcreativoff.com/versions/#{version.id}'>#{build}</a>
+                     is ready for QA"
+
+          notify('qa', message)
 
         else
           `git checkout #{build}`
@@ -486,54 +442,43 @@ module Trinity
 
       ret = {
           :issue => issue,
-          :merge_status => @@merge_statuses[:ok]
+          :merge_status => @@merge_statuses[:ok],
+          :meta => {}
       }
 
       related_branch = Trinity::Git.find_issue_related_branch(issue)
 
-      @log.info "Related branch: #{related_branch}"
+      applog :info, "Related branch: #{related_branch}"
 
       if !related_branch.empty?
 
-        @log.info 'Merging branch'
+        applog :info, 'Merging branch'
         branch_merged = `git branch -r --merged`.split("\n").map { |br| br.strip }.select { |br| related_branch.match(br) }
 
         if branch_merged.empty?
-          @log.info "Merging #{issue.id} branch #{related_branch}"
+          applog :info, "Merging #{issue.id} branch #{related_branch}"
 
           merge_status = `git merge --no-ff #{related_branch}`
 
-          @log.info merge_status
+          applog :info, merge_status
 
           conflict = /CONFLICT|fatal/
 
           if conflict.match(merge_status)
-
-            @log.warn "Error while automerging branch #{related_branch}"
-            puts "Resetting HEAD"
+            applog :warn, "Error while automerging branch #{related_branch}"
+            applog :info, 'Resetting HEAD'
             `git reset --hard`
-
-            @log.info "Trying to load changesets"
-            current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets'})
-            @log.info "Changeset loaded: #{!current.changesets.nil?.inspect}" if options[:verbose]
-
-            # Try to assign developer
-            if !current.changesets.empty? && current.changesets.last.user.id
-              @log.info "Assigned to ID: #{current.assigned_to.id}"
-              @log.info "Changeset last user ID: #{current.changesets.last.user.id}"
-              issue.assigned_to_id = current.changesets.last.user.id
-              issue.notes = "Имеются неразрашенные конфликты.\nНеобходимо слить ветку задачи #{related_branch} и ветку master.\n#{merge_status}"
-            else
-              issue.notes = "ВАЖНО! Нужно вручную назначить разработчика. Имеются неразрашенные конфликты.\nНужно слить ветку задачи #{related_branch} и ветку master.\n#{merge_status}"
-            end
-
             ret[:merge_status] = @@merge_statuses[:conflict]
+            ret[:meta] = {
+                :related_branch => related_branch,
+                :merge_message => merge_status,
+            }
           else
             ret[:merge_status] = @@merge_statuses[:ok]
           end
 
         else
-          @log.info 'Branch already merged. Next...'
+          applog :info, 'Branch already merged. Next...'
         end
 
       else
@@ -558,18 +503,18 @@ module Trinity
       end
 
       if date.nil?
-        @log.error "#{__method__}: Chronic.parse error"
+        applog :error, "#{__method__}: Chronic.parse error"
         abort
       end
 
-      @log.info "Date for build: #{date}; Hours to QA: #{options[:hours_to_qa]}"
+      applog :info, "Date for build: #{date}; Hours to QA: #{options[:hours_to_qa]}"
       return date
     end
 
     def time_to_qa(build, hours_diff)
 
-      @log.info "Hours diff: #{hours_diff}"
-      @log.info "Build: #{build}"
+      applog :info, "Hours diff: #{hours_diff}"
+      applog :info, "Build: #{build}"
 
       # Parse date from build name
       buf = build.split('_').drop(1)
@@ -579,22 +524,22 @@ module Trinity
       parsed_date = Chronic.parse(date_string)
 
       if parsed_date.nil?
-        @log.fatal "#{__method__} couldn't parse time"
+        applog :fatal, "#{__method__} couldn't parse time"
         abort
       end
 
-      @log.info "#{__method__}: #{parsed_date}"
+      applog :info, "#{__method__}: #{parsed_date}"
 
       (parsed_date-Time.now)/3600.round <= hours_diff
     end
 
     def log_block(name, state)
-      @log.info "[============================= #{name}: #{state} ===============================]"
+      applog :info, "[============================= #{name}: #{state} ===============================]"
     end
 
     # Notify all recipients of the given condition with the specified message.
     #
-    # condition - The Condition.
+    # notify - The Condition.
     # message   - The String message to send.
     #
     # Returns nothing.

@@ -4,3 +4,6 @@ Gemfile.lock
 pkg/*
 .idea
 work
+config.yaml
+.DS_Store
+*.log

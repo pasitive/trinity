@@ -42,6 +42,12 @@ module Trinity
       applog :info, 'Initialization - OK'
     end
 
+    desc 'setup', 'Setup trinity'
+
+    def setup
+      `git flow init -fd`
+    end
+
     desc 'transition', 'Help to check statuses & transitions'
 
     def transition

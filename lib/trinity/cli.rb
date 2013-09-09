@@ -257,7 +257,7 @@ module Trinity
             t = Trinity::Transition.generate('flow_reject_from_build')
             t.config = @config
             t.version = version
-            t.handle(issue) if t.check(issue)
+            t.handle(issue) if t.check(issue, ret)
           end
         end
 

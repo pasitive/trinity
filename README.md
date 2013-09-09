@@ -1,0 +1,4 @@
+trinity
+=======
+
+Redmine automate helper

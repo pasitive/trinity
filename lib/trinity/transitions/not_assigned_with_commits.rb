@@ -10,10 +10,14 @@ module Trinity
 
       def check(issue, params)
         valid = true
-        if current.assigned_to.id = current.changesets.first.user.id
+
+        @current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets'})
+
+        if issue.assigned_to.id.to_i.eql? @current.changesets.first.user.id.to_i
           applog(:warn, "Issue #{issue.id} already assigned to first commiter")
           valid = false
         end
+
         valid
       end
 
@@ -21,19 +25,17 @@ module Trinity
 
         msg = "#{issue.id};"
 
-        current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets'})
-
         self.notes = "Исполнителем задачи #{self.issue_link(issue)} назначен автор первого коммита."
 
-        issue.assigned_to_id = current.changesets.first.user.id
-        msg += "Assigned to: #{current.changesets.first.user.id};"
+        issue.assigned_to_id = @current.changesets.first.user.id
+        msg += "Assigned to: #{@current.changesets.first.user.id};"
         issue.notes = self.notes
         msg += "Notes: #{self.notes}"
         applog(:info, msg)
 
         issue.save
 
-        author = Trinity::Redmine::Users.find(current.changesets.first.user.id)
+        author = Trinity::Redmine::Users.find(@current.changesets.first.user.id)
 
         Trinity.contact(:jabber) do |c|
           c.name = author.login

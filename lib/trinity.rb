@@ -1,6 +1,15 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
 
+# = Trinity
+# Trinity - an automated assistant working with Redmine.
+# The basic idea is to save people from manual operations status changes, translation problems, etc. during the task.
+#
+# Highlights:
+# Transition - the process of moving tasks from state to state.
+# Each task takes a certain cycle: production, decomposition, implementation, testing, commissioning.
+# You can enable or disable certain transitions in the configuration file.
+
 require 'rake'
 require 'yaml'
 require 'chronic'
@@ -15,7 +24,6 @@ require 'trinity/cli'
 
 CONTACT_DEPS = {}
 CONTACT_LOAD_SUCCESS = {}
-TRANSITION_LOAD_SUCCESS = {}
 
 def load_contact(name)
   require "trinity/contacts/#{name}"

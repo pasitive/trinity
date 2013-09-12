@@ -4,7 +4,7 @@ module Trinity
   class CLI < Thor
     include Thor::Actions
 
-    class_option :config, :aliases => '-c', :type => :string, :required => true
+    class_option :config, :aliases => '-c', :type => :string
     class_option :verbose, :aliases => '-v', :type => :boolean, :default => true
     class_option :hours_to_qa, :default => 2, :aliases => '-qa', :desc => "Hours to QA-team to test the build"
 
@@ -38,6 +38,9 @@ module Trinity
 
     def initialize(*)
       super
+
+      p options[:help]
+      abort
       @config = Trinity::Config.load({:file => options[:config]})
       applog :info, 'Initialization - OK'
     end

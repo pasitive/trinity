@@ -23,3 +23,29 @@ Shot of the task falls to build (set shots).
 If everything is OK in build, the task goes to production.
 
 Fixed--[auto]-->In shot--[QA]-->In shot - OK--[auto]-->[On prerelease]--[QA]-->On prerelease - OK--[auto]-->Closed
+
+Installation:
+
+Gemfile:
+---
+source 'https://rubygems.org'
+gem 'trinity', :git => 'git@github.com:pasitive/trinity.git', :tag => '1.1.0'
+gem 'god'
+---
+
+1. Create working directory
+> mkdir trinity
+> cd trinity
+
+2. Use RVM
+> rvm use 1.9.3@trinity --rvmrc --create
+> cd ..
+> cd trinity
+> bundle install
+Read following notes.
+
+3. git clone git@github.com:<yourname>/<yourproject>.git
+
+4. Edit transition.god & config.yaml
+
+5. rvmsudo god load -c transition.god

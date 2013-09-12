@@ -38,17 +38,13 @@ module Trinity
 
     def initialize(*)
       super
-
-      p options[:help]
-      abort
       @config = Trinity::Config.load({:file => options[:config]})
       applog :info, 'Initialization - OK'
     end
 
-    desc 'setup', 'Setup trinity'
-
-    def setup
-      `git flow init -fd`
+    desc 'init', 'Setup trinity'
+    def init
+      `git flow init`
     end
 
     desc 'transition', 'Help to check statuses & transitions'

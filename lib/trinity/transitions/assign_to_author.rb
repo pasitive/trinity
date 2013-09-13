@@ -19,7 +19,7 @@ module Trinity
           valid = false
         end
 
-        if issue.assigned_to.id.eql? issue.author.id
+        if valid && (issue.assigned_to.id.eql? issue.author.id)
           self.notes = "Issue #{issue.id} already assigned to author"
           applog(:info, self.notes)
           valid = false

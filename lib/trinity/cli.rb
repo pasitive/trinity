@@ -42,6 +42,11 @@ module Trinity
       applog :info, 'Initialization - OK'
     end
 
+    desc 'version', 'Version number'
+    def version
+      p Trinity.VERSION
+    end
+
     desc 'init', 'Setup trinity'
     def init
       `git flow init`

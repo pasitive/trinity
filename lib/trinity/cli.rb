@@ -44,7 +44,7 @@ module Trinity
 
     desc 'version', 'Version number'
     def version
-      p Trinity.VERSION
+      p VERSION
     end
 
     desc 'init', 'Setup trinity'

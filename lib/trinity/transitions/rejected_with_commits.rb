@@ -47,7 +47,7 @@ module Trinity
           self.notes = 'Задача отклонена.'
         end
 
-        if self.config['redmine']['custom_fields']['returns']
+        if !self.config['redmine']['custom_fields']['returns'].nil?
           returns_id = self.config['redmine']['custom_fields']['returns'].to_i
           returns = issue.cf(returns_id)
           returns.value = (returns.value.to_i + 1).to_s

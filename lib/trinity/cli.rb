@@ -69,6 +69,7 @@ module Trinity
         begin
           @config['transitions'].each do |project, transitions|
             applog(:info, "Processing project: #{project}")
+            p transitions.inspect
             transitions.each do |tn, params|
               t = Trinity::Transition.generate(tn)
               applog(:info, "Processing transition #{t.friendly_name}")

@@ -82,11 +82,6 @@ module Trinity
               issues.each do |issue|
                 check = t.check(issue, params)
 
-                if !check
-                  notify('admins', t.notes)
-                  next
-                end
-
                 t.handle(issue) if check
                 notify(t.notify, t.notes) if check
               end

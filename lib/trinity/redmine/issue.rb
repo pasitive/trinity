@@ -2,6 +2,17 @@ module Trinity
   module Redmine
     class Issue < RestAPI
 
+      def cf(id, value = nil)
+        if self.respond_to? 'custom_fields'
+          cf = self.custom_fields.select { |i| i.id.to_i.eql? id }.first
+          cf.value = value.to_s if !value.nil?
+          cf
+        else
+          applog :warn, "Issue #{self.id} have no custom field with id=#{id}"
+          nil
+        end
+      end
+
       def self.find_related_blocked_ids(issue_id)
         issue = Trinity::Redmine::Issue.find(issue_id, :params => {:include => 'relations'})
         if issue.respond_to? 'relations'

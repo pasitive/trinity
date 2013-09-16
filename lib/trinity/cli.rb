@@ -36,6 +36,14 @@ module Trinity
                          :order => 5, :sym => TYPE_BLOCKS, :reverse => TYPE_BLOCKS},
     }.freeze
 
+    desc 'foo', 'qew'
+
+    def foo
+      issue = Trinity::Redmine::Issue.find(4423)
+      related_branch = Trinity::Git.find_issue_related_branch(issue)
+      p related_branch.split('/').last
+    end
+
     def initialize(*)
       super
       @config = Trinity::Config.load({:file => options[:config]})
@@ -43,13 +51,15 @@ module Trinity
     end
 
     desc 'version', 'Version number'
+
     def version
       p VERSION
     end
 
     desc 'init', 'Setup trinity'
+
     def init
-      `git flow init`
+
     end
 
     desc 'transition', 'Help to check statuses & transitions'

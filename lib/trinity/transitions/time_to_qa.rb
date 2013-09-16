@@ -22,7 +22,7 @@ module Trinity
           valid = false
         end
 
-        if !@group.respond_to? 'users'
+        if valid && (!@group.respond_to? 'users')
           applog(:warn, "No users in group #{@group.name}")
           valid = false
         end
@@ -32,12 +32,12 @@ module Trinity
           result
         end
 
-        if @group_users.empty?
+        if valid && @group_users.empty?
           applog(:warn, "No users in group #{@group.name}")
           valid = false
         end
 
-        if @group_users.include?(issue.assigned_to.id.to_i)
+        if valid && @group_users.include?(issue.assigned_to.id.to_i)
           applog(:info, "No action needed. Assigned to user is a member of #{@group.name} group")
           valid = false
         end

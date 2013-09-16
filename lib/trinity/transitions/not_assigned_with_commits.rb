@@ -13,7 +13,20 @@ module Trinity
 
         @current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets'})
 
-        if issue.assigned_to.id.to_i.eql? @current.changesets.first.user.id.to_i
+        if !@current.respond_to? 'assigned_to'
+          self.notes = "Issue #{issue.id} is not responding to assigned_to"
+          applog(:warn, self.notes)
+          valid = false
+        end
+
+        if valid && (!@current.respond_to? 'changesets')
+          self.notes = "Issue #{issue.id} is not responding to changesets"
+          applog(:warn, self.notes)
+          valid = false
+        end
+
+
+        if valid && (issue.assigned_to.id.to_i.eql? @current.changesets.first.user.id.to_i)
           applog(:warn, "Issue #{issue.id} already assigned to first commiter")
           valid = false
         end

@@ -17,7 +17,11 @@ module Trinity
           valid = false
         end
 
-        if valid && (issue.priority.id.to_i.eql? self.config['redmine']['priority']['critical'].to_i)
+        #if valid && (issue.priority.id.to_i.eql? self.config['redmine']['priority']['critical'].to_i)
+        #  valid = false
+        #end
+
+        if valid && (!issue.assigned_to.id.to_i.eql? params['reject_to_group_id'].to_i)
           valid = false
         end
 

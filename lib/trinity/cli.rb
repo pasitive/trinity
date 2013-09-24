@@ -67,7 +67,6 @@ module Trinity
     def transition
       loop do
         begin
-          p @config['transitions']
           @config['transitions'].each do |project, transitions|
             applog(:info, "Processing project: #{project}")
             transitions.each do |tn, params|

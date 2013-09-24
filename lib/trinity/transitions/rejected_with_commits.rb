@@ -22,6 +22,7 @@ module Trinity
         #end
 
         if valid && (!issue.assigned_to.id.to_i.eql? params['reject_to_group_id'].to_i)
+          applog :info, "Issue assigned to #{issue.assigned_to.id}, group #{params['reject_to_group_id'].to_i}"
           valid = false
         end
 

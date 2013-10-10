@@ -39,7 +39,19 @@ module Trinity
     desc 'foo', 'qew'
 
     def foo
+      current = Trinity::Redmine::Issue.find(4687, :params => {:include => 'changesets,journals'})
+      if current.respond_to? 'journals'
+        devs = current.journals.inject([]) do |result, journal|
+          result << journal.user.id.to_i
+          result
+        end
+        devs.uniq!
+        if devs.size > 0
+          current.assigned_to_id = devs.sample
+        end
 
+        p devs
+      end
     end
 
     def initialize(*)

@@ -67,7 +67,7 @@ module Trinity
           else
 
             if current.respond_to? 'journals'
-              devs = issue.journals.inject([]) do |result, journal|
+              devs = current.journals.inject([]) do |result, journal|
                 result << journal.user.id.to_i if (@group_users.include? journal.user.id.to_i)
                 result
               end

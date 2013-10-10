@@ -17,7 +17,7 @@ module Trinity
 
       def handle(issue)
 
-        applog :warn, 'We have issues that do not match release status'
+        logmsg :warn, 'We have issues that do not match release status'
 
         issue.fixed_version_id = ''
         issue.notes = "Задача не попадает в билд #{version.name}."

@@ -18,12 +18,12 @@ module Trinity
         @group = Trinity::Redmine::Groups.find(params['qa_group_id'], :params => {:include => 'users'})
 
         if !@group.respond_to? 'name'
-          applog(:warn, "Group #{params['qa_group_id']} not found")
+          logmsg(:warn, "Group #{params['qa_group_id']} not found")
           valid = false
         end
 
         if valid && (!@group.respond_to? 'users')
-          applog(:warn, "No users in group #{@group.name}")
+          logmsg(:warn, "No users in group #{@group.name}")
           valid = false
         end
 
@@ -33,12 +33,12 @@ module Trinity
         end
 
         if valid && @group_users.empty?
-          applog(:warn, "No users in group #{@group.name}")
+          logmsg(:warn, "No users in group #{@group.name}")
           valid = false
         end
 
         if valid && @group_users.include?(issue.assigned_to.id.to_i)
-          applog(:info, "No action needed. Assigned to user is a member of #{@group.name} group")
+          logmsg(:info, "No action needed. Assigned to user is a member of #{@group.name} group")
           valid = false
         end
 

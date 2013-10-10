@@ -15,19 +15,19 @@ module Trinity
 
         if !@current.respond_to? 'assigned_to'
           self.notes = "Issue #{issue.id} is not responding to assigned_to"
-          applog(:warn, self.notes)
+          logmsg(:warn, self.notes)
           valid = false
         end
 
         if valid && (!@current.respond_to? 'changesets')
           self.notes = "Issue #{issue.id} is not responding to changesets"
-          applog(:warn, self.notes)
+          logmsg(:warn, self.notes)
           valid = false
         end
 
 
         if valid && (issue.assigned_to.id.to_i.eql? @current.changesets.first.user.id.to_i)
-          applog(:warn, "Issue #{issue.id} already assigned to first commiter")
+          logmsg(:warn, "Issue #{issue.id} already assigned to first commiter")
           valid = false
         end
 
@@ -44,7 +44,7 @@ module Trinity
         msg += "Assigned to: #{@current.changesets.first.user.id};"
         issue.notes = self.notes
         msg += "Notes: #{self.notes}"
-        applog(:info, msg)
+        logmsg(:info, msg)
 
         issue.save
 

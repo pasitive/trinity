@@ -15,11 +15,11 @@ module Trinity
 
         @meta = params[:meta] if params[:meta]
 
-        applog :info, "Trying to load changesets"
+        logmsg :info, "Trying to load changesets"
 
         @current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets'})
 
-        applog :info, "Changeset are empty?: #{@current.changesets.nil?.inspect}"
+        logmsg :info, "Changeset are empty?: #{@current.changesets.nil?.inspect}"
 
         @assign_to_id = issue.assigned_to.id
         if @current.respond_to? 'changesets'

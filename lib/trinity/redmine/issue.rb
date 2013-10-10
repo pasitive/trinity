@@ -8,7 +8,7 @@ module Trinity
           cf.value = value.to_s if !value.nil?
           cf
         else
-          applog :warn, "Issue #{self.id} have no custom field with id=#{id}"
+          logmsg :warn, "Issue #{self.id} have no custom field with id=#{id}"
           nil
         end
       end

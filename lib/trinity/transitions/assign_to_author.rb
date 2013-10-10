@@ -15,13 +15,11 @@ module Trinity
 
         if !issue.respond_to? 'assigned_to'
           self.notes = "Issue #{issue.id} is not responding to assigned_to"
-          applog(:warn, self.notes)
+          logmsg(:warn, self.notes)
           valid = false
         end
 
         if valid && (issue.assigned_to.id.eql? issue.author.id)
-          #self.notes = "Issue #{issue.id} already assigned to author"
-          #applog(:info, self.notes)
           valid = false
         end
 

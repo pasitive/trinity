@@ -23,16 +23,6 @@ module Trinity
           @config.merge!(load_from_yaml(filename))
         end
 
-        if @config['email_delivery']
-          @config['email_delivery'].each do |k, v|
-            v.symbolize_keys! if v.respond_to?(:symbolize_keys!)
-          end
-          c = @config['email_delivery']
-          Mail.defaults do
-            delivery_method c['delivery_method'], c['smtp_settings']
-          end
-        end
-
         if @config['redmine']['connection']
           ActiveResource::Base.site = @config['redmine']['connection']['site']
           ActiveResource::Base.user = @config['redmine']['connection']['user']
@@ -47,15 +37,35 @@ module Trinity
           d.password = @config['notification']['jabber']['password']
         end
 
+        if @config['email_delivery']['smtp_settings'] and @config['email_delivery']['delivery_method'].eql? :smtp
+          c = @config['email_delivery']['smtp_settings']
+          Trinity::Contacts::Email.defaults do |d|
+            d.from_email = c['user_name']
+            d.from_name = 'Trinity'
+            d.server_host = c['address']
+            d.server_port = c['port']
+            d.server_auth = c['authentication']
+            d.server_domain = c['address']
+            d.server_user = c['user_name']
+            d.server_password = c['password']
+          end
+        end
+
         if @config['notification']['groups']
           @config['notification']['groups'].each do |group, members|
             members.each do |name_buf|
               name = name_buf.split('/').last
-              to_jid = name_buf.split('/').first
+              to_email = name_buf.split('/').first
               Trinity.contact(:jabber) do |c|
                 c.name = name
                 c.group = group
-                c.to_jid = to_jid
+                c.to_jid = to_email
+              end
+              Trinity.contact(:email) do |c|
+                c.name = name + '_mail'
+                c.group = group
+                c.to_email = to_email
+                c.to_name = name
               end
             end
           end

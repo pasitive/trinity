@@ -25,12 +25,12 @@ module Trinity
         @group = Trinity::Redmine::Groups.find(params['reject_to_group_id'], :params => {:include => 'users'})
 
         if !@group.respond_to? 'name'
-          applog(:warn, "Group #{params['reject_to_group_id']} not found")
+          logmsg(:warn, "Group #{params['reject_to_group_id']} not found")
           valid = false
         end
 
         if valid && (!@group.respond_to? 'users')
-          applog(:warn, "No users in group #{@group.name}")
+          logmsg(:warn, "No users in group #{@group.name}")
           valid = false
         end
 
@@ -40,12 +40,12 @@ module Trinity
         end
 
         if valid && @group_users.empty?
-          applog(:warn, "No users in group #{@group.name}")
+          logmsg(:warn, "No users in group #{@group.name}")
           valid = false
         end
 
         if valid && @group_users.include?(issue.assigned_to.id.to_i)
-          applog(:info, "No action needed. Assigned to user is a member of #{@group.name} group")
+          logmsg(:info, "No action needed. Assigned to user is a member of #{@group.name} group")
           valid = false
         end
 
@@ -54,22 +54,32 @@ module Trinity
 
       def handle(issue)
 
-        current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets'})
+        current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets,journals'})
 
         if current.respond_to? 'changesets'
           if current.changesets.last.respond_to? 'user'
             last_user_id = current.changesets.last.user.id
-            self.notes = "Задача #{self.issue_link(issue)} отклонена.\n
-                                      Необходимо ее исправить и установить статус Решена.\n
-                                      Переназначено на разработчика, который делал коммит последним."
+            self.notes = "Задача #{self.issue_link(issue)} отклонена.\r\n
+                                      Необходимо ее исправить и установить статус Решена.\r\n
+                                      Переназначено на разработчика"
             issue.assigned_to_id = last_user_id
             user = Trinity::Redmine::Users.find(last_user_id)
           else
-            self.notes = "Мне не удалось найти разработчика по коммитам к задаче #{self.issue_link(issue)}.\n
-                                      Вероятно их никто не делал.\n
-                                      Вам необходимо вручную найти в истории имя разработчика и
-                                      переназначить задачу на него."
-            user = Trinity::Redmine::Users.find(issue.assigned_to.id)
+
+            if current.respond_to? 'journals'
+              devs = issue.journals.inject([]) do |result, journal|
+                result << journal.user.id.to_i if (@group_users.include? journal.user.id.to_i)
+                result
+              end
+              devs.uniq!
+              if devs.size > 0
+                issue.assigned_to_id = devs.sample
+              end
+            else
+              self.notes = "Мне не удалось найти разработчика по коммитам к задаче #{self.issue_link(issue)}. \r\n
+                            Вероятно их никто не делал. \r\n
+                            Вам необходимо вручную найти в истории имя разработчика и переназначить задачу на него."
+            end
           end
         else
           self.notes = 'Задача отклонена.'
@@ -85,14 +95,20 @@ module Trinity
         issue.notes = self.notes
         issue.save
 
-        #Trinity.contact(:jabber) do |c|
-        #  c.name = user.login
-        #  c.to_jid = user.mail
-        #end
-        #
-        #self.notify << user.login
-
         issue
+      end
+
+
+      def try_find_in_journals(issue)
+        issue = Trinity::Redmine::Issue.find(4687, :params => {:include => 'journals'})
+
+        group = Trinity::Redmine::Groups.find(reject_ro_group_id, :params => {:include => 'users'})
+        group_users = group.users.inject([]) do |result, user|
+          result << user.id.to_i
+          result
+        end
+
+
       end
 
     end

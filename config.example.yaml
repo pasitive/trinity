@@ -47,7 +47,7 @@ default:
         query_id: 79
 #      time_to_qa:
 #        query_id: 91
-#        qa_group_id: 53
+#        qa_group_id: 53 # Группа, из которой выбирать тестировщика
       not_assigned_with_commits:
         query_id: 80
       rejected_with_commits:

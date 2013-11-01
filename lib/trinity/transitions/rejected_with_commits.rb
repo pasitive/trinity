@@ -17,32 +17,11 @@ module Trinity
           valid = false
         end
 
-        #if valid && (issue.priority.id.to_i.eql? self.config['redmine']['priority']['critical'].to_i)
-        #  valid = false
-        #end
-
-        # Check if group valid
-        @group = Trinity::Redmine::Groups.find(params['reject_to_group_id'], :params => {:include => 'users'})
-
-        if !@group.respond_to? 'name'
-          logmsg(:warn, "Group #{params['reject_to_group_id']} not found")
-          valid = false
+        if params['reject_to_group_id'].nil?
+          logmsg :warn, 'reject_to_group_id parameter is not set'
         end
 
-        if valid && (!@group.respond_to? 'users')
-          logmsg(:warn, "No users in group #{@group.name}")
-          valid = false
-        end
-
-        @group_users = @group.users.inject([]) do |result, user|
-          result << user.id.to_i
-          result
-        end
-
-        if valid && @group_users.empty?
-          logmsg(:warn, "No users in group #{@group.name}")
-          valid = false
-        end
+        @group_users = Trinity::Redmine::Groups.get_group_users(params['reject_to_group_id'])
 
         if valid && @group_users.include?(issue.assigned_to.id.to_i)
           logmsg(:info, "No action needed. Assigned to user is a member of #{@group.name} group")

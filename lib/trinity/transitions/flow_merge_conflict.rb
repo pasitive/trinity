@@ -21,7 +21,7 @@ module Trinity
 
         logmsg :info, "Changeset are empty?: #{@current.changesets.nil?.inspect}"
 
-        @assign_to_id = issue.assigned_to.id
+        @assign_to_id = issue.respond_to? 'assigned_to' ? issue.assigned_to.id : ''
         if @current.respond_to? 'changesets'
           @assign_to_id = @current.changesets.last.user.id
           self.notes = "Имеются неразрашенные конфликты.\nНеобходимо слить ветку задачи #{@meta[:related_branch]}и ветку master.\n#{@meta[:merge_message]}"

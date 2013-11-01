@@ -35,33 +35,15 @@ module Trinity
 
         current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets,journals'})
 
-        if current.respond_to? 'changesets'
-          if current.changesets.last.respond_to? 'user'
-            last_user_id = current.changesets.last.user.id
-            self.notes = "Задача #{self.issue_link(issue)} отклонена.\r\n
-                                      Необходимо ее исправить и установить статус Решена.\r\n
-                                      Переназначено на разработчика"
-            issue.assigned_to_id = last_user_id
-            user = Trinity::Redmine::Users.find(last_user_id)
-          else
-
-            if current.respond_to? 'journals'
-              devs = current.journals.inject([]) do |result, journal|
-                result << journal.user.id.to_i if (@group_users.include? journal.user.id.to_i)
-                result
-              end
-              devs.uniq!
-              if devs.size > 0
-                issue.assigned_to_id = devs.sample
-              end
-            else
-              self.notes = "Мне не удалось найти разработчика по коммитам к задаче #{self.issue_link(issue)}. \r\n
-                            Вероятно их никто не делал. \r\n
-                            Вам необходимо вручную найти в истории имя разработчика и переназначить задачу на него."
-            end
-          end
+        if current.respond_to?(:changesets)
+          last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(issue)
+          self.notes = "Переназначено на сотрудника, который вносил изменения последним."
+          current.assigned_to_id = last_user_id
+        elsif current.respond_to?(:journals)
+          users = Trinity::Redmine::Issue.filter_users_from_journals_by_group_id(issue, @group_users)
+          current.assigned_to_id = users.sample if users.size > 0
         else
-          self.notes = 'Задача отклонена.'
+          self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него."
         end
 
         if !self.config['redmine']['custom_fields']['returns'].nil?
@@ -75,19 +57,6 @@ module Trinity
         issue.save
 
         issue
-      end
-
-
-      def try_find_in_journals(issue)
-        issue = Trinity::Redmine::Issue.find(4687, :params => {:include => 'journals'})
-
-        group = Trinity::Redmine::Groups.find(reject_ro_group_id, :params => {:include => 'users'})
-        group_users = group.users.inject([]) do |result, user|
-          result << user.id.to_i
-          result
-        end
-
-
       end
 
     end

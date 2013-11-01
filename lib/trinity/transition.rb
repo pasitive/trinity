@@ -36,9 +36,5 @@ module Trinity
       issue_link
     end
 
-    def issue_shot(issue)
-
-    end
-
   end
 end

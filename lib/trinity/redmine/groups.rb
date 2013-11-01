@@ -28,7 +28,7 @@ module Trinity
             valid = false
           end
 
-          return nil if !valid
+          return [] if !valid
 
           result
         end

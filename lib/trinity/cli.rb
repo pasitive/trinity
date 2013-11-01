@@ -39,19 +39,28 @@ module Trinity
     desc 'foo', 'qew'
 
     def foo
-      current = Trinity::Redmine::Issue.find(4687, :params => {:include => 'changesets,journals'})
-      if current.respond_to? 'journals'
-        devs = current.journals.inject([]) do |result, journal|
-          result << journal.user.id.to_i
-          result
-        end
-        devs.uniq!
-        if devs.size > 0
-          current.assigned_to_id = devs.sample
-        end
 
-        p devs
-      end
+      #issue_id = 4687;
+      issue_id = 4826;
+      current = Trinity::Redmine::Issue.find(issue_id, :params => {:include => 'changesets,journals'})
+
+
+      last_uid = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
+
+      p last_uid
+
+      #if current.respond_to? 'journals'
+      #  devs = current.journals.inject([]) do |result, journal|
+      #    result << journal.user.id.to_i
+      #    result
+      #  end
+      #  devs.uniq!
+      #  if devs.size > 0
+      #    current.assigned_to_id = devs.sample
+      #  end
+      #
+      #  p devs
+      #end
     end
 
     def initialize(*)

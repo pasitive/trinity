@@ -16,7 +16,6 @@ module Trinity
 
         @group_users = Trinity::Redmine::Groups.get_group_users(params['qa_group_id'])
 
-
         if valid && @group_users.include?(issue.assigned_to.id.to_i)
           logmsg(:info, "No action needed. Assigned to user is a member of #{@group.name} group")
           valid = false

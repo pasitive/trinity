@@ -38,10 +38,10 @@ module Trinity
         if current.respond_to?(:changesets)
           last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
           self.notes = "Переназначено на сотрудника, который вносил изменения последним."
-          current.assigned_to_id = last_user_id
+          issue.assigned_to_id = last_user_id
         elsif current.respond_to?(:journals)
           users = Trinity::Redmine::Issue.filter_users_from_journals_by_group_id(current, @group_users)
-          current.assigned_to_id = users.sample if users.size > 0
+          issue.assigned_to_id = users.sample if users.size > 0
         else
           self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него."
         end

@@ -30,7 +30,7 @@ module Trinity
 
           return [] if !valid
 
-          result
+          group_users
         end
 
       end

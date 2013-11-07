@@ -36,46 +36,19 @@ module Trinity
                          :order => 5, :sym => TYPE_BLOCKS, :reverse => TYPE_BLOCKS},
     }.freeze
 
-    desc 'foo', 'qew'
-
-    def foo
-
-      #issue_id = 4687;
-      issue_id = 4826;
-      current = Trinity::Redmine::Issue.find(issue_id, :params => {:include => 'changesets,journals'})
-
-
-      last_uid = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
-
-      p last_uid
-
-      #if current.respond_to? 'journals'
-      #  devs = current.journals.inject([]) do |result, journal|
-      #    result << journal.user.id.to_i
-      #    result
-      #  end
-      #  devs.uniq!
-      #  if devs.size > 0
-      #    current.assigned_to_id = devs.sample
-      #  end
-      #
-      #  p devs
-      #end
-    end
-
     def initialize(*)
       super
+      # Loading config file
       @config = Trinity::Config.load({:file => options[:config]})
-      logmsg :info, 'Initialization - OK'
     end
 
-    desc 'version', 'Version number'
+    desc 'version', 'Get version number'
 
     def version
-      p VERSION
+      p VERSION.to_s
     end
 
-    desc 'transition', 'Help to check statuses & transitions'
+    desc 'transition', 'Utility to help handle issue statuses and assign issues to the employers'
 
     def transition
       loop do
@@ -86,17 +59,21 @@ module Trinity
               t = Trinity::Transition.generate(tn)
               logmsg(:info, "Processing transition #{t.friendly_name}")
               t.config = @config
+
               if project.to_s.eql? 'all'
                 issues = Trinity::Redmine.fetch_issues_by_filter_id(params['query_id'], {})
               else
                 issues = Trinity::Redmine.fetch_issues_by_filter_id(params['query_id'], {:project_id => project})
               end
+
               logmsg(:info, "Issues loaded: #{issues.count}")
+
               issues.each do |issue|
                 check = t.check(issue, params)
                 t.handle(issue) if check
                 notify(t.notify, t.notes) if check
               end
+
             end
           end
         rescue ActiveResource::ServerError => e
@@ -210,7 +187,7 @@ module Trinity
       logmsg :info, "Current branch is: #{Trinity::Git.current_branch}"
 
       logmsg :info, 'Merging master into current branch'
-      `git merge master`
+      `git merge --no-ff origin/master`
 
       logmsg :info, 'Begin merging features'
 

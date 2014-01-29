@@ -15,9 +15,9 @@ module Trinity
 
         @meta = params[:meta] if params[:meta]
 
-        logmsg(:warn, self.config.inspect)
+        logmsg(:warn, params.inspect)
 
-        @group_users = Trinity::Redmine::Groups.get_group_users(self.config['reject_to_group_id'])
+        @group_users = Trinity::Redmine::Groups.get_group_users(params['reject_to_group_id'])
 
         if valid && @group_users.include?(issue.assigned_to.id.to_i)
           logmsg(:info, "No action needed. Assigned to user is a member of #{@group.name} group")

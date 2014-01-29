@@ -15,6 +15,8 @@ module Trinity
 
         @meta = params[:meta] if params[:meta]
 
+        logmsg(:warn, self.config.inspect)
+
         @group_users = Trinity::Redmine::Groups.get_group_users(self.config['reject_to_group_id'])
 
         if valid && @group_users.include?(issue.assigned_to.id.to_i)

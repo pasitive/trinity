@@ -47,9 +47,9 @@ module Trinity
 
             users.uniq!
 
-          rescue NoMethodError
+          rescue NoMethodError => e
             logmsg :warn, "No journals assigned to issue ##{issue.id} (#{e.message})"
-          rescue StandardError
+          rescue StandardError => e
             logmsg :error, e.message + e.backtrace.inspect
           end
         end

@@ -18,18 +18,18 @@ module Trinity
         #logmsg :info, params.inspect
 
         project_name = params[:project_name]
-        project_params = self.config['transitions'][project_name]
+        rejected_with_commit_params = self.config['transitions'][project_name]['rejected_with_commits']
 
         logmsg :debug, "Project name: #{project_name.inspect}"
         logmsg :debug, "Project params: #{project_params.inspect}"
 
 
-        if project_params.nil?
+        if rejected_with_commit_params.nil?
           logmsg :warn, "project parameters are not set"
           logmsg :debug, params.inspect
         end
 
-        @group_users = Trinity::Redmine::Groups.get_group_users(project_params['reject_to_group_id'])
+        @group_users = Trinity::Redmine::Groups.get_group_users(rejected_with_commit_params['reject_to_group_id'])
 
         if valid && @group_users.include?(issue.assigned_to.id.to_i)
           logmsg(:info, "No action needed. Assigned to user is a member of #{@group.name} group")

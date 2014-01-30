@@ -31,6 +31,8 @@ module Trinity
 
         @group_users = Trinity::Redmine::Groups.get_group_users(rejected_with_commit_params['reject_to_group_id'])
 
+        logmsg :debug, @group_users
+
         if valid && @group_users.include?(issue.assigned_to.id.to_i)
           logmsg(:info, "No action needed. Assigned to user is a member of right group")
           valid = false

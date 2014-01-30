@@ -20,6 +20,10 @@ module Trinity
         project_name = params[:project_name]
         project_params = self.config['transitions'][project_name]
 
+        logmsg :debug, "Project name: #{project_name.inspect}"
+        logmsg :debug, "Project params: #{project_params.inspect}"
+
+
         if project_params.nil?
           logmsg :warn, "project parameters are not set"
           logmsg :debug, params.inspect

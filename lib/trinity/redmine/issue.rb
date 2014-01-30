@@ -30,7 +30,10 @@ module Trinity
       class << self
 
         def get_last_user_id_from_changesets(issue)
-          issue.changesets.last.user.id
+          logmsg :info, 'Getting last user id from chacngesets'
+          last_user_id = issue.changesets.last.user.id
+          logmsg :debug, "Last user id: #{last_user_id.inspect}"
+          last_user_id
         rescue NoMethodError => e
           logmsg :info, issue.changesets
           logmsg :warn, "No commits assigned to issue ##{issue.id} (#{e.message})"

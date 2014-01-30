@@ -21,7 +21,7 @@ module Trinity
         rejected_with_commit_params = self.config['transitions'][project_name]['rejected_with_commits']
 
         logmsg :debug, "Project name: #{project_name.inspect}"
-        logmsg :debug, "Project params: #{project_params.inspect}"
+        logmsg :debug, "Project params: #{rejected_with_commit_params.inspect}"
 
 
         if rejected_with_commit_params.nil?

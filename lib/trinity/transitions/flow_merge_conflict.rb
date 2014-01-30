@@ -33,10 +33,10 @@ module Trinity
 
         logmsg :debug, @group_users
 
-        if valid && @group_users.include?(issue.assigned_to.id.to_i)
-          logmsg(:info, "No action needed. Assigned to user is a member of right group")
-          valid = false
-        end
+        #if valid && @group_users.include?(issue.assigned_to.id.to_i)
+        #  logmsg(:info, "No action needed. Assigned to user is a member of right group")
+        #  valid = false
+        #end
 
         valid
       end

@@ -57,9 +57,11 @@ module Trinity
 
         @assign_to_id = last_user_id
 
+        logmsg :debug, "Assign to: #{@assign_to_id.inspect}"
+
         set_issue_attributes(issue)
         issue.save
-        notify_internal(issue)
+        #notify_internal(issue)
         issue
       end
 

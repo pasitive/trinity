@@ -42,6 +42,7 @@ module Trinity
         end
 
         def filter_users_from_journals_by_group_id(issue, group_users)
+          logmsg :info, 'Getting last user id from journals'
           begin
             users = issue.journals.inject([]) do |result, journal|
               result << journal.user.id.to_i if (group_users.include? journal.user.id.to_i)
@@ -49,6 +50,8 @@ module Trinity
             end
 
             users.uniq!
+
+            logmsg :debug, "Users: #{users}"
 
           rescue NoMethodError => e
             logmsg :warn, "No journals assigned to issue ##{issue.id} (#{e.message})"

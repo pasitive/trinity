@@ -200,7 +200,7 @@ module Trinity
 
         log_block("Feature #{issue.id} merge", 'start')
 
-        ret = merge_feature_branch(issue, version)
+        ret = merge_feature_branch(issue, version, project_name)
         handle_merge_status(issue, version, ret)
 
         log_block("Feature #{issue.id} merge", 'end')
@@ -338,6 +338,59 @@ module Trinity
       t.handle(issue) if t.check(issue, ret)
     end
 
+    def merge_feature_branch(issue, version, project_name)
+
+      ret = {
+          :project_name => project_name,
+          :issue => issue,
+          :merge_status => @@merge_statuses[:ok],
+          :meta => {}
+      }
+
+      related_branch = Trinity::Git.find_issue_related_branch(issue)
+
+      logmsg :info, "Related branch: #{related_branch}"
+
+      if !related_branch.empty?
+
+        logmsg :info, 'Merging branch'
+        branch_merged = `git branch -r --merged`.split("\n").map { |br| br.strip }.select { |br| related_branch.match(br) }
+
+        if branch_merged.empty?
+          logmsg :info, "Merging #{issue.id} branch #{related_branch}"
+
+          merge_status = `git merge --no-ff #{related_branch}`
+
+          logmsg :info, merge_status
+
+          conflict = /CONFLICT|fatal/
+
+          if conflict.match(merge_status)
+            logmsg :warn, "Error while automerging branch #{related_branch}"
+            logmsg :info, 'Resetting HEAD'
+            `git reset --hard`
+            ret[:merge_status] = @@merge_statuses[:conflict]
+            ret[:meta] = {
+                :related_branch => related_branch,
+                :merge_message => merge_status,
+            }
+          else
+            ret[:merge_status] = @@merge_statuses[:ok]
+          end
+
+        else
+          logmsg :info, 'Branch already merged. Next...'
+        end
+
+      else
+        ret[:merge_status] = @@merge_statuses[:empty]
+      end
+
+      ret[:issue] = issue
+
+      return ret
+    end
+
     def prepare_build(project_name, build)
 
       log_block('Prepare', 'start')
@@ -448,58 +501,6 @@ module Trinity
         return build
       end
 
-    end
-
-    def merge_feature_branch(issue, version)
-
-      ret = {
-          :issue => issue,
-          :merge_status => @@merge_statuses[:ok],
-          :meta => {}
-      }
-
-      related_branch = Trinity::Git.find_issue_related_branch(issue)
-
-      logmsg :info, "Related branch: #{related_branch}"
-
-      if !related_branch.empty?
-
-        logmsg :info, 'Merging branch'
-        branch_merged = `git branch -r --merged`.split("\n").map { |br| br.strip }.select { |br| related_branch.match(br) }
-
-        if branch_merged.empty?
-          logmsg :info, "Merging #{issue.id} branch #{related_branch}"
-
-          merge_status = `git merge --no-ff #{related_branch}`
-
-          logmsg :info, merge_status
-
-          conflict = /CONFLICT|fatal/
-
-          if conflict.match(merge_status)
-            logmsg :warn, "Error while automerging branch #{related_branch}"
-            logmsg :info, 'Resetting HEAD'
-            `git reset --hard`
-            ret[:merge_status] = @@merge_statuses[:conflict]
-            ret[:meta] = {
-                :related_branch => related_branch,
-                :merge_message => merge_status,
-            }
-          else
-            ret[:merge_status] = @@merge_statuses[:ok]
-          end
-
-        else
-          logmsg :info, 'Branch already merged. Next...'
-        end
-
-      else
-        ret[:merge_status] = @@merge_statuses[:empty]
-      end
-
-      ret[:issue] = issue
-
-      return ret
     end
 
     def time_to_release

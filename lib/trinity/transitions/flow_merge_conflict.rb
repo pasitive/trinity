@@ -15,14 +15,20 @@ module Trinity
 
         @meta = params[:meta] if params[:meta]
 
-        #logmsg(:warn, params.inspect)
+        project_name = params[:project_name]
+        project_params = params['transitions'][project_name]
 
-        #@group_users = Trinity::Redmine::Groups.get_group_users(params['reject_to_group_id'])
-        #
-        #if valid && @group_users.include?(issue.assigned_to.id.to_i)
-        #  logmsg(:info, "No action needed. Assigned to user is a member of #{@group.name} group")
-        #  valid = false
-        #end
+        if project_params.nil?
+          logmsg :warn, "project parameters are not set"
+          logmsg :debug, params.inspect
+        end
+
+        @group_users = Trinity::Redmine::Groups.get_group_users(project_params['reject_to_group_id'])
+
+        if valid && @group_users.include?(issue.assigned_to.id.to_i)
+          logmsg(:info, "No action needed. Assigned to user is a member of #{@group.name} group")
+          valid = false
+        end
 
         valid
       end

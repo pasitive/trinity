@@ -15,6 +15,8 @@ module Trinity
 
         @meta = params[:meta] if params[:meta]
 
+        logmsg :info, params.inspect
+
         project_name = params[:project_name]
         project_params = params['transitions'][project_name]
 

@@ -48,9 +48,7 @@ module Trinity
         if current.respond_to?(:changesets)
           last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
           self.notes = "Переназначено на сотрудника, который вносил изменения последним."
-        end
-
-        if current.respond_to?(:journals)
+        elsif current.respond_to?(:journals)
           users = Trinity::Redmine::Issue.filter_users_from_journals_by_group_id(current, @group_users)
           last_user_id = users.sample if users.size > 0
         else

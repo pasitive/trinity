@@ -77,6 +77,7 @@ module Trinity
 
       def notify_internal(issue)
         notify = [issue.author.id, @assign_to_id]
+        logmsg :debug, "Notify: #{notify.inspect}"
         notify.each do |user_id|
           user = Trinity::Redmine::Users.find(user_id)
           Trinity.contact(:jabber) do |c|

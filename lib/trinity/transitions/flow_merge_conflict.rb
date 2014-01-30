@@ -15,10 +15,10 @@ module Trinity
 
         @meta = params[:meta] if params[:meta]
 
-        logmsg :info, params.inspect
+        #logmsg :info, params.inspect
 
         project_name = params[:project_name]
-        project_params = params['transitions'][project_name]
+        project_params = self.config['transitions'][project_name]
 
         if project_params.nil?
           logmsg :warn, "project parameters are not set"

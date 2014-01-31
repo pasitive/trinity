@@ -45,6 +45,11 @@ module Trinity
 
         current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets,journals'})
 
+        logmsg :debug, "Current respond_to changesets?: #{current.respond_to?(:changesets)}"
+        logmsg :debug, "Current respond_to journals?: #{current.respond_to?(:journals)}"
+
+        return
+
         if current.respond_to?(:changesets)
           last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
         elsif current.respond_to?(:journals)

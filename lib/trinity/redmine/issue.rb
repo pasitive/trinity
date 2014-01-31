@@ -30,16 +30,23 @@ module Trinity
       class << self
 
         def get_last_user_id_from_changesets(issue)
+
           logmsg :info, 'Getting last user id from chacngesets'
-          logmsg :debug, issue.changesets.inspect
+
+          return nil if issue.changesets.empty?
+
           last_user_id = issue.changesets.last.user.id.to_i
+
           logmsg :debug, "Last user id: #{last_user_id.inspect}"
+
           last_user_id
         rescue NoMethodError => e
           logmsg :info, issue.changesets
           logmsg :warn, "No commits assigned to issue ##{issue.id} (#{e.message})"
+          nil
         rescue StandardError => e
           logmsg :error, e.message + e.backtrace.inspect
+          nil
         end
 
         def filter_users_from_journals_by_group_id(issue, group_users)

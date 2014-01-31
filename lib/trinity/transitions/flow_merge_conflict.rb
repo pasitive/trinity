@@ -48,7 +48,7 @@ module Trinity
         logmsg :debug, "Current respond_to changesets?: #{current.respond_to?(:changesets)}"
         logmsg :debug, "Current respond_to journals?: #{current.respond_to?(:journals)}"
 
-        if current.respond_to?(:changesets)
+        if current.respond_to?(:changesets) and !Trinity::Redmine::Issue.get_last_user_id_from_changesets(current).nil?
           logmsg :debug, 'Yip, changesets'
           last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
           logmsg :debug, "last user id set to: #{last_user_id.inspect}"

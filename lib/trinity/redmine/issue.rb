@@ -56,11 +56,9 @@ module Trinity
               result << journal.user.id.to_i if (group_users.include? journal.user.id.to_i)
               result
             end
-
-            logmsg :debug, "Users: #{users.uniq!}"
-
             users.uniq!
-
+            logmsg :debug, "Users: #{users}"
+            users
           rescue NoMethodError => e
             logmsg :warn, "No journals assigned to issue ##{issue.id} (#{e.message})"
           rescue StandardError => e

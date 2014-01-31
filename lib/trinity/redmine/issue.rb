@@ -31,6 +31,7 @@ module Trinity
 
         def get_last_user_id_from_changesets(issue)
           logmsg :info, 'Getting last user id from chacngesets'
+          logmsg :debug, issue.changesets.inspect
           last_user_id = issue.changesets.last.user.id.to_i
           logmsg :debug, "Last user id: #{last_user_id.inspect}"
           last_user_id

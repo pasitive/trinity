@@ -51,8 +51,10 @@ module Trinity
         return
 
         if current.respond_to?(:changesets)
+          logmsg :debug, 'Yip, changesets'
           last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
         elsif current.respond_to?(:journals)
+          logmsg :debug, 'Yip, journals'
           users = Trinity::Redmine::Issue.filter_users_from_journals_by_group_id(current, @group_users)
           last_user_id = users.sample if users.size > 0
         else

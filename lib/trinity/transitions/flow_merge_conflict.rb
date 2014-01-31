@@ -61,10 +61,7 @@ module Trinity
           self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него.\n #{@meta[:merge_message]}"
         end
 
-        return
-
         self.notes = "Конфликт при слиянии\n\n#{@meta[:merge_message]}"
-
 
         @assign_to_id = last_user_id
 

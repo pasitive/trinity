@@ -53,10 +53,12 @@ module Trinity
         if current.respond_to?(:changesets)
           logmsg :debug, 'Yip, changesets'
           last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
+          logmsg :debug, "last user id set to: #{last_user_id.inspect}"
         elsif current.respond_to?(:journals)
           logmsg :debug, 'Yip, journals'
           users = Trinity::Redmine::Issue.filter_users_from_journals_by_group_id(current, @group_users)
           last_user_id = users.sample if users.size > 0
+          logmsg :debug, "last user id set to: #{last_user_id.inspect}"
         else
           self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него.\n #{@meta[:merge_message]}"
         end

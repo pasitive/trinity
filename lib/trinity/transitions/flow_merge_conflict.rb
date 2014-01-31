@@ -48,7 +48,7 @@ module Trinity
         logmsg :debug, "Current respond_to changesets?: #{current.respond_to?(:changesets)}"
         logmsg :debug, "Current respond_to journals?: #{current.respond_to?(:journals)}"
 
-        return
+
 
         if current.respond_to?(:changesets)
           logmsg :debug, 'Yip, changesets'
@@ -62,6 +62,8 @@ module Trinity
         else
           self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него.\n #{@meta[:merge_message]}"
         end
+
+        return
 
         self.notes = "Конфликт при слиянии\n\n#{@meta[:merge_message]}"
 

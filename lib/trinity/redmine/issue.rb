@@ -31,9 +31,9 @@ module Trinity
 
         def get_last_user_id_from_changesets(issue)
 
-          logmsg :info, 'Getting last user id from chacngesets'
-
           return nil if issue.changesets.empty?
+
+          logmsg :info, 'Getting last user id from chacngesets'
 
           last_user_id = issue.changesets.last.user.id.to_i
 
@@ -57,9 +57,9 @@ module Trinity
               result
             end
 
-            users.uniq!
+            logmsg :debug, "Users: #{users.uniq!}"
 
-            logmsg :debug, "Users: #{users}"
+            users.uniq!
 
           rescue NoMethodError => e
             logmsg :warn, "No journals assigned to issue ##{issue.id} (#{e.message})"

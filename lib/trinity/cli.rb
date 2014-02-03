@@ -187,7 +187,7 @@ module Trinity
       logmsg :info, "Current branch is: #{Trinity::Git.current_branch}"
 
       logmsg :info, 'Pulling changes into current branch'
-      `git branch --set-upstream-to=origin/#{build} build`
+      `git branch --set-upstream-to=origin/#{build} #{build}`
       `git pull`
 
       logmsg :info, 'Merging master into current branch'

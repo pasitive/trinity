@@ -253,7 +253,7 @@ module Trinity
 
             logmsg :info, "Merging issue: #{issue.id} v#{issue.fixed_version.name}"
 
-            ret = merge_feature_branch(issue, version)
+            ret = merge_feature_branch(issue, version, project_name)
 
             if status.eql? @@merge_statuses[:conflict]
               t = Trinity::Transition.generate('flow_merge_conflict')

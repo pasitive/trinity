@@ -1,6 +1,15 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
 
+# = Trinity
+# Trinity - an automated assistant working with Redmine.
+# The basic idea is to save people from manual operations status changes, translation problems, etc. during the task.
+#
+# Highlights:
+# Transition - the process of moving tasks from state to state.
+# Each task takes a certain cycle: production, decomposition, implementation, testing, commissioning.
+# You can enable or disable certain transitions in the configuration file.
+
 require 'rake'
 require 'yaml'
 require 'chronic'
@@ -15,7 +24,6 @@ require 'trinity/cli'
 
 CONTACT_DEPS = {}
 CONTACT_LOAD_SUCCESS = {}
-TRANSITION_LOAD_SUCCESS = {}
 
 def load_contact(name)
   require "trinity/contacts/#{name}"
@@ -26,6 +34,7 @@ end
 
 require 'trinity/contact'
 load_contact(:jabber)
+load_contact(:email)
 
 require 'trinity/transition'
 require 'trinity/transitions/assign_to_author'
@@ -40,7 +49,7 @@ require 'trinity/transitions/flow_release'
 # App wide logging system
 LOG = Logger.new(STDOUT)
 
-def applog(level, text)
+def logmsg(level, text)
   case level
     when :info
       LOG.info text
@@ -101,10 +110,10 @@ module Trinity
 
     # Verify contact has been loaded.
     if CONTACT_LOAD_SUCCESS[kind] == false
-      applog(:error, "A required dependency for the #{kind} contact is unavailable.")
-      applog(:error, "Run the following commands to install the dependencies:")
+      logmsg(:error, "A required dependency for the #{kind} contact is unavailable.")
+      logmsg(:error, "Run the following commands to install the dependencies:")
       CONTACT_DEPS[kind].each do |d|
-        applog(:error, "  [sudo] gem install #{d}")
+        logmsg(:error, "  [sudo] gem install #{d}")
       end
       abort
     end
@@ -130,7 +139,7 @@ module Trinity
 
     # Warn and noop if the contact has been defined before.
     if self.contacts[c.name] || self.contact_groups[c.name]
-      applog(:warn, "Contact name '#{c.name}' already used for a Contact or Contact Group")
+      logmsg(:warn, "Contact name '#{c.name}' already used for a Contact or Contact Group")
       return
     end
 

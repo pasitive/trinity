@@ -57,11 +57,11 @@ module Trinity
 
       rescue Object => e
         if e.respond_to?(:message)
-          applog(:info, "failed to send jabber message to #{arg(:to_jid)}: #{e.message}")
+          logmsg(:info, "failed to send jabber message to #{arg(:to_jid)}: #{e.message}")
         else
-          applog(:info, "failed to send jabber message to #{arg(:to_jid)}: #{e.class}")
+          logmsg(:info, "failed to send jabber message to #{arg(:to_jid)}: #{e.class}")
         end
-        applog(:debug, e.backtrace.join("\n"))
+        logmsg(:debug, e.backtrace.join("\n"))
       end
 
     end

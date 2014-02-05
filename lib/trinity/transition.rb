@@ -36,9 +36,5 @@ module Trinity
       issue_link
     end
 
-    def notify_users
-
-    end
-
   end
 end

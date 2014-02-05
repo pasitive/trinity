@@ -14,31 +14,10 @@ module Trinity
       def check(issue, params)
         valid = true
 
-        # Check if group valid
-        @group = Trinity::Redmine::Groups.find(params['qa_group_id'], :params => {:include => 'users'})
+        @group_users = Trinity::Redmine::Groups.get_group_users(params['qa_group_id'])
 
-        if !@group.respond_to? 'name'
-          applog(:warn, "Group #{params['qa_group_id']} not found")
-          valid = false
-        end
-
-        if !@group.respond_to? 'users'
-          applog(:warn, "No users in group #{@group.name}")
-          valid = false
-        end
-
-        @group_users = @group.users.inject([]) do |result, user|
-          result << user.id.to_i
-          result
-        end
-
-        if @group_users.empty?
-          applog(:warn, "No users in group #{@group.name}")
-          valid = false
-        end
-
-        if @group_users.include?(issue.assigned_to.id.to_i)
-          applog(:info, "No action needed. Assigned to user is a member of #{@group.name} group")
+        if valid && @group_users.include?(issue.assigned_to.id.to_i)
+          logmsg(:info, "No action needed. Assigned to user is a member of #{@group.name} group")
           valid = false
         end
 

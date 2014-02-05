@@ -15,33 +15,68 @@ module Trinity
 
         @meta = params[:meta] if params[:meta]
 
-        applog :info, "Trying to load changesets"
+        #logmsg :info, params.inspect
 
-        @current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets'})
+        project_name = params[:project_name]
+        rejected_with_commit_params = self.config['transitions'][project_name]['rejected_with_commits']
 
-        applog :info, "Changeset are empty?: #{@current.changesets.nil?.inspect}"
+        logmsg :debug, "Project name: #{project_name.inspect}"
+        logmsg :debug, "Project params: #{rejected_with_commit_params.inspect}"
 
-        @assign_to_id = issue.assigned_to.id
-        if @current.respond_to? 'changesets'
-          @assign_to_id = @current.changesets.last.user.id
-          self.notes = "Имеются неразрашенные конфликты.\nНеобходимо слить ветку задачи #{@meta[:related_branch]}и ветку master.\n#{@meta[:merge_message]}"
-        else
-          self.notes = "ВАЖНО! Нужно вручную назначить разработчика.Имеются неразрашенные конфликты.\nНужно слить ветку задачи #{@meta[:related_branch]} и ветку master.\n#{@meta[:merge_message]}"
+
+        if rejected_with_commit_params.nil?
+          logmsg :warn, "project parameters are not set"
+          logmsg :debug, params.inspect
         end
+
+        @group_users = Trinity::Redmine::Groups.get_group_users(rejected_with_commit_params['reject_to_group_id'])
+
+        logmsg :debug, @group_users
+
+        #if valid && @group_users.include?(issue.assigned_to.id.to_i)
+        #  logmsg(:info, "No action needed. Assigned to user is a member of right group")
+        #  valid = false
+        #end
 
         valid
       end
 
       def handle(issue)
+
+        current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets,journals'})
+
+        logmsg :debug, "Current respond_to changesets?: #{current.respond_to?(:changesets)}"
+        logmsg :debug, "Current respond_to journals?: #{current.respond_to?(:journals)}"
+
+        if current.respond_to?(:changesets) and !Trinity::Redmine::Issue.get_last_user_id_from_changesets(current).nil?
+          logmsg :debug, 'Yip, changesets'
+          last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
+          logmsg :debug, "last user id set to: #{last_user_id.inspect}"
+        elsif current.respond_to?(:journals)
+          logmsg :debug, 'Yip, journals'
+          users = Trinity::Redmine::Issue.filter_users_from_journals_by_group_id(current, @group_users)
+          last_user_id = users.sample if users.size > 0
+          logmsg :debug, "last user id set to: #{last_user_id.inspect}"
+        else
+          self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него.\n #{@meta[:merge_message]}"
+        end
+
+        self.notes = "Конфликт при слиянии\n\n#{@meta[:merge_message]}"
+
+        @assign_to_id = last_user_id
+
+        logmsg :debug, "Assign to: #{@assign_to_id.inspect}"
+
         set_issue_attributes(issue)
         issue.save
-        notify_internal(issue)
+        #notify_internal(issue)
         issue
       end
 
       private
 
       def set_issue_attributes(issue)
+
         issue.assigned_to_id = @assign_to_id
         issue.notes = self.notes
         issue.priority_id = self.config['redmine']['priority']['critical']
@@ -52,6 +87,7 @@ module Trinity
 
       def notify_internal(issue)
         notify = [issue.author.id, @assign_to_id]
+        logmsg :debug, "Notify: #{notify.inspect}"
         notify.each do |user_id|
           user = Trinity::Redmine::Users.find(user_id)
           Trinity.contact(:jabber) do |c|

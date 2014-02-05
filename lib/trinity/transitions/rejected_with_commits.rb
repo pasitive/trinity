@@ -17,7 +17,14 @@ module Trinity
           valid = false
         end
 
-        if issue.priority.id.to_i.eql? self.config['redmine']['priority']['critical'].to_i
+        if params['reject_to_group_id'].nil?
+          logmsg :warn, 'reject_to_group_id parameter is not set'
+        end
+
+        @group_users = Trinity::Redmine::Groups.get_group_users(params['reject_to_group_id'])
+
+        if valid && @group_users.include?(issue.assigned_to.id.to_i)
+          logmsg(:info, "No action needed. Assigned to user is a member of #{@group.name} group")
           valid = false
         end
 
@@ -26,32 +33,28 @@ module Trinity
 
       def handle(issue)
 
-        current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets'})
+        current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets,journals'})
 
-        if current.changesets.last.respond_to? 'user'
-          last_user_id = current.changesets.last.user.id
-          self.notes = issue.notes = "Задача #{self.issue_link(issue)} отклонена.\n
-                                      Необходимо ее исправить и установить статус Решена.\n
-                                      Переназначено на разработчика, который делал коммит последним."
+        if current.respond_to?(:changesets)
+          last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
+          self.notes = "Переназначено на сотрудника, который вносил изменения последним."
           issue.assigned_to_id = last_user_id
-          user = Trinity::Redmine::Users.find(last_user_id)
+        elsif current.respond_to?(:journals)
+          users = Trinity::Redmine::Issue.filter_users_from_journals_by_group_id(current, @group_users)
+          issue.assigned_to_id = users.sample if users.size > 0
         else
-          self.notes = issue.notes = "Мне не удалось найти разработчика по коммитам к задаче #{self.issue_link(issue)}.\n
-                                      Вероятно их никто не делал.\n
-                                      Вам необходимо вручную найти в истории имя разработчика и
-                                      переназначить задачу на него."
-          user = Trinity::Redmine::Users.find(issue.assigned_to.id)
+          self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него."
+        end
+
+        if !self.config['redmine']['custom_fields']['returns'].nil?
+          returns_id = self.config['redmine']['custom_fields']['returns'].to_i
+          returns = issue.cf(returns_id)
+          returns.value = (returns.value.to_i + 1).to_s
         end
 
         issue.priority_id = self.config['redmine']['priority']['critical'].to_i
+        issue.notes = self.notes
         issue.save
-
-        Trinity.contact(:jabber) do |c|
-          c.name = user.login
-          c.to_jid = user.mail
-        end
-
-        self.notify << user.login
 
         issue
       end

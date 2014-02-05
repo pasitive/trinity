@@ -38,14 +38,19 @@ default:
         - d.boldinov@happylab.ru/Deniss
 
   transitions:
+    all: # Маркер всех проектов
+      assign_to_author: # Транзишн назначения на автора решенной задачи
+        query_id: 79 # ID фильтра
+
     tvkinoradio-web:
       assign_to_author:
         query_id: 79
 #      time_to_qa:
 #        query_id: 91
-#        qa_group_id: 53
+#        qa_group_id: 53 # Группа, из которой выбирать тестировщика
       not_assigned_with_commits:
         query_id: 80
       rejected_with_commits:
         query_id: 88
+        reject_to_group_id: 18 # Группа, из которой выбирать разработчика при отклоненной задаче
 

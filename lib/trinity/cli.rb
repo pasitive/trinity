@@ -40,6 +40,16 @@ module Trinity
       super
       # Loading config file
       @config = Trinity::Config.load({:file => options[:config]})
+
+      @master_branch = Trinity::Git.config('gitflow.branch.master')
+      @develop_branch = Trinity::Git.config('gitflow.branch.develop')
+
+      logmsg :debug, "Parameter master_branch is: #{@master_branch}"
+      logmsg :debug, "Parameter develop_branch is: #{@develop_branch}"
+
+      if @master_branch.nil? or @develop_branch.nil?
+        notify('admins', "Error getting git flow config branches: master_branch:#{@master_branch.inspect}, develop_branch:#{@develop_branch.inspect}")
+      end
     end
 
     desc 'version', 'Get version number'
@@ -160,17 +170,6 @@ module Trinity
 
     def merge(project_name, query_id)
 
-      master_branch = Trinity::Git.config('gitflow.branch.master')
-      develop_branch = Trinity::Git.config('gitflow.branch.develop')
-
-      logmsg :debug, "Parameter master_branch is: #{master_branch}"
-      logmsg :debug, "Parameter develop_branch is: #{develop_branch}"
-
-      if master_branch.nil? or develop_branch.nil?
-        notify('admins', "Error getting git flow config branches: master_branch:#{master_branch.inspect}, develop_branch:#{develop_branch.inspect}")
-        return false
-      end
-
       log_block('Merge', 'start')
 
       logmsg :info, "Project ID: #{project_name}, Query ID: #{query_id}"
@@ -190,7 +189,7 @@ module Trinity
       end
 
       # Prevent merging to master
-      if Trinity::Git.current_branch.match(master_branch)
+      if Trinity::Git.current_branch.match(@master_branch)
         logmsg :warn, 'Current branch is master. STOP MERGING DIRECTLY TO MASTER BRANCH'
         return false
       end
@@ -201,8 +200,8 @@ module Trinity
       `git branch --set-upstream-to=origin/#{build} #{build}`
       `git pull`
 
-      logmsg :info, "Merging #{master_branch} into current branch"
-      `git merge --no-ff origin/#{master_branch}`
+      logmsg :info, "Merging #{@master_branch} into current branch"
+      `git merge --no-ff origin/#{@master_branch}`
 
       logmsg :info, 'Begin merging features'
 
@@ -244,7 +243,7 @@ module Trinity
 
         logmsg :info, 'Preparing build branch'
 
-        `git checkout master`
+        `git checkout #{@develop_branch}`
         `git branch -D #{branch}`
         `git push origin :#{branch}` if Trinity::Git.is_branch_pushed(branch)
         `git checkout -b #{branch}`

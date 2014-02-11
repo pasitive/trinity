@@ -34,6 +34,14 @@ module Trinity
         !`git branch -r --merged`.split("\n").map { |n| n.strip }.select { |b| b.match(branch) }.empty?
       end
 
+      def config(k)
+        hsh = {}
+        `git config --list`.split("\n").each do |line|
+          (key, *values) = line.split('=')
+          hsh[key] = values.join('=')
+        end
+        hsh[k] if !hsh[k].nil?
+      end
     end
   end
 end

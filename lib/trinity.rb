@@ -33,6 +33,7 @@ rescue LoadError
 end
 
 require 'trinity/contact'
+
 load_contact(:jabber)
 load_contact(:email)
 

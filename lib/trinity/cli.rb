@@ -160,6 +160,14 @@ module Trinity
 
     def merge(project_name, query_id)
 
+      master_branch = Trinity::Git.config('gitflow.branch.master')
+      develop_branch = Trinity::Git.config('gitflow.branch.develop')
+
+      if master_branch.nil? or develop_branch.nil?
+        notify('admins', "Error getting git flow config branches: master_branch:#{master_branch.inspect}, develop_branch:#{develop_branch.inspect}")
+        return false
+      end
+
       log_block('Merge', 'start')
 
       logmsg :info, "Project ID: #{project_name}, Query ID: #{query_id}"
@@ -179,7 +187,7 @@ module Trinity
       end
 
       # Prevent merging to master
-      if Trinity::Git.current_branch.match('master')
+      if Trinity::Git.current_branch.match(master_branch)
         logmsg :warn, 'Current branch is master. STOP MERGING DIRECTLY TO MASTER BRANCH'
         return false
       end
@@ -191,7 +199,7 @@ module Trinity
       `git pull`
 
       logmsg :info, 'Merging master into current branch'
-      `git merge --no-ff origin/master`
+      `git merge --no-ff origin/#{master_branch}`
 
       logmsg :info, 'Begin merging features'
 

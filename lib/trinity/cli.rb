@@ -454,7 +454,7 @@ module Trinity
         build_pushed = Trinity::Git.is_branch_pushed(build)
         logmsg :info, "Check if build is pushed to origin: #{build_pushed.inspect}"
 
-        build_merged = Trinity::Git.is_branch_merged(build, 'master')
+        build_merged = Trinity::Git.is_branch_merged(build, @master_branch)
         logmsg :info, "Check if build is already merged: #{build_merged.inspect}"
 
         build_has_no_issues = Trinity::Redmine.fetch_issues({:project_id => project_name, :fixed_version_id => version.id.to_i}).count.eql? 0
@@ -497,7 +497,7 @@ module Trinity
           logmsg :info, 'Time to QA build.'
 
           `git push origin #{build}`
-          `git checkout master`
+          `git checkout #{@master_branch}`
           `git branch -D #{build}`
 
           logmsg :info, "Deleted branch #{build}"
@@ -506,7 +506,6 @@ module Trinity
                      is ready for QA"
 
           notify('qa', message)
-
         else
           `git checkout #{build}`
         end

@@ -163,6 +163,9 @@ module Trinity
       master_branch = Trinity::Git.config('gitflow.branch.master')
       develop_branch = Trinity::Git.config('gitflow.branch.develop')
 
+      logmsg :debug, "Parameter master_branch is: #{master_branch}"
+      logmsg :debug, "Parameter develop_branch is: #{develop_branch}"
+
       if master_branch.nil? or develop_branch.nil?
         notify('admins', "Error getting git flow config branches: master_branch:#{master_branch.inspect}, develop_branch:#{develop_branch.inspect}")
         return false
@@ -198,7 +201,7 @@ module Trinity
       `git branch --set-upstream-to=origin/#{build} #{build}`
       `git pull`
 
-      logmsg :info, 'Merging master into current branch'
+      logmsg :info, "Merging #{master_branch} into current branch"
       `git merge --no-ff origin/#{master_branch}`
 
       logmsg :info, 'Begin merging features'

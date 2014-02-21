@@ -383,6 +383,7 @@ module Trinity
         if branch_merged.empty?
 
           if issue.respond_to?(:fixed_version)
+
             logmsg :info, "Merging branch into build it assigned to"
 
             current_version_id = version.id
@@ -394,6 +395,7 @@ module Trinity
             logmsg :debug, "Equal versions: #{current_version_id.eql? issue_version_id}"
 
             if !current_version_id.eql? issue_version_id
+              version = ret[:version] = issue.fixed_version
               `git checkout #{issue.fixed_version.name}`
             end
 

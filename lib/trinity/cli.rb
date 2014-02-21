@@ -270,12 +270,12 @@ module Trinity
             logmsg :info, "Merging issue: #{issue.id} v#{issue.fixed_version.name}"
 
             ret = merge_feature_branch(issue, version, project_name)
-            handle_merge_status(issue, version, ret)
+            handle_merge_status(issue, ret[:version], ret)
 
             if status.eql? @@merge_statuses[:conflict]
               t = Trinity::Transition.generate('flow_merge_conflict')
               t.config = @config
-              t.version = version
+              t.version = ret[:version]
               t.handle(issue) if t.check(issue, ret)
             end
 
@@ -283,7 +283,7 @@ module Trinity
           else
             t = Trinity::Transition.generate('flow_reject_from_build')
             t.config = @config
-            t.version = version
+            t.version = ret[:version]
             t.handle(issue) if t.check(issue, ret)
           end
         end

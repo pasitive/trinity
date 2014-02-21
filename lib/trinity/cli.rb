@@ -41,16 +41,6 @@ module Trinity
       super
       # Loading config file
       @config = Trinity::Config.load({:file => options[:config]})
-
-      @master_branch = Trinity::Git.config('gitflow.branch.master')
-      @develop_branch = Trinity::Git.config('gitflow.branch.develop')
-
-      logmsg :debug, "Parameter master_branch is: #{@master_branch}"
-      logmsg :debug, "Parameter develop_branch is: #{@develop_branch}"
-
-      if @master_branch.nil? or @develop_branch.nil?
-        notify('admins', "Error getting git flow config branches: master_branch:#{@master_branch.inspect}, develop_branch:#{@develop_branch.inspect}")
-      end
     end
 
     desc 'version', 'Get version number'
@@ -171,10 +161,7 @@ module Trinity
 
     def merge(project_name, query_id)
 
-      if @master_branch.nil? or @develop_branch.nil?
-        notify('admins', "Error getting git flow config branches: master_branch:#{@master_branch.inspect}, develop_branch:#{develop_branch.inspect}")
-        return false
-      end
+      read_git_flow_config
 
       log_block('Merge', 'start')
 
@@ -241,6 +228,8 @@ module Trinity
     method_option :force, :default => false, :type => :boolean, :aliases => '-f', :desc => 'Delete branch completely and merge features again. Use with caution.'
 
     def rebuild(project_name, branch, status = 'open')
+
+      read_git_flow_config
 
       log_block('Rebuild', 'start')
 
@@ -446,6 +435,8 @@ module Trinity
     end
 
     def prepare_build(project_name, build)
+
+      read_git_flow_config
 
       log_block('Prepare', 'start')
 
@@ -670,5 +661,13 @@ module Trinity
       return true
     end
 
+    def read_git_flow_config
+      @master_branch = Trinity::Git.config('gitflow.branch.master')
+      @develop_branch = Trinity::Git.config('gitflow.branch.develop')
+
+      if @master_branch.nil? or @develop_branch.nil?
+        notify('admins', "Error getting git flow config branches: master_branch:#{@master_branch.inspect}, develop_branch:#{@develop_branch.inspect}")
+      end
+    end
   end
 end

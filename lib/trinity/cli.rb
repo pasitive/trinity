@@ -174,6 +174,8 @@ module Trinity
 
       build = prepare_build(project_name, build)
 
+      Trinity::Git::fetch
+
       version = Trinity::Redmine::Version.find_version(project_name, build)
 
       if version.nil?
@@ -250,8 +252,10 @@ module Trinity
           `git checkout #{branch}`
         end
 
-        merge_status = `git merge origin/#{@master_branch}`
+        Trinity::Git::fetch
 
+        `git pull origin/#{branch}`
+        merge_status = `git merge origin/#{@master_branch}`
         `git reset --hard` if is_conflict(merge_status)
 
         issues = Trinity::Redmine.fetch_issues({:project_id => project_name, :fixed_version_id => version_id})
@@ -270,7 +274,6 @@ module Trinity
             logmsg :info, "Merging issue: #{issue.id} v#{issue.fixed_version.name}"
 
             ret = merge_feature_branch(issue, version, project_name)
-            handle_merge_status(issue, ret[:version], ret)
 
             if status.eql? @@merge_statuses[:conflict]
               t = Trinity::Transition.generate('flow_merge_conflict')
@@ -403,7 +406,7 @@ module Trinity
 
         if branch_merged.empty?
 
-          logmsg :info, "Merging #{issue.id} branch #{related_branch} into #{ret[:version]}"
+          logmsg :info, "Merging #{issue.id} branch #{related_branch} into #{ret[:version].name}"
 
           merge_status = `git merge --no-ff #{related_branch}`
 

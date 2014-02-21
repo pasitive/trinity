@@ -2,6 +2,10 @@ module Trinity
   class Git
     class << self
 
+      def fetch
+        `git fetch --all`
+      end
+
       def status
         `git status`
       end

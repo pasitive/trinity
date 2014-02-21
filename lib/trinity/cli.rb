@@ -41,6 +41,16 @@ module Trinity
       super
       # Loading config file
       @config = Trinity::Config.load({:file => options[:config]})
+
+      @master_branch = Trinity::Git.config('gitflow.branch.master')
+      @develop_branch = Trinity::Git.config('gitflow.branch.develop')
+
+      logmsg :debug, "Parameter master_branch is: #{@master_branch}"
+      logmsg :debug, "Parameter develop_branch is: #{@develop_branch}"
+
+      if @master_branch.nil? or @develop_branch.nil?
+        notify('admins', "Error getting git flow config branches: master_branch:#{@master_branch.inspect}, develop_branch:#{@develop_branch.inspect}")
+      end
     end
 
     desc 'version', 'Get version number'
@@ -188,7 +198,7 @@ module Trinity
       end
 
       # Prevent merging to master
-      if Trinity::Git.current_branch.match(master_branch)
+      if Trinity::Git.current_branch.match(@master_branch)
         logmsg :warn, 'Current branch is master. STOP MERGING DIRECTLY TO MASTER BRANCH'
         return false
       end
@@ -199,6 +209,8 @@ module Trinity
       `git branch --set-upstream-to=origin/#{build} #{build}`
       `git pull`
 
+      logmsg :info, "Merging #{@master_branch} into current branch"
+      `git merge --no-ff origin/#{@master_branch}`
       logmsg :info, 'Merging master into current branch'
       merge_status = `git merge --no-ff origin/#{master_branch}`
 
@@ -489,7 +501,7 @@ module Trinity
         build_pushed = Trinity::Git.is_branch_pushed(build)
         logmsg :info, "Check if build is pushed to origin: #{build_pushed.inspect}"
 
-        build_merged = Trinity::Git.is_branch_merged(build, 'master')
+        build_merged = Trinity::Git.is_branch_merged(build, @master_branch)
         logmsg :info, "Check if build is already merged: #{build_merged.inspect}"
 
         build_has_no_issues = Trinity::Redmine.fetch_issues({:project_id => project_name, :fixed_version_id => version.id.to_i}).count.eql? 0
@@ -541,7 +553,6 @@ module Trinity
                      is ready for QA"
 
           notify('qa', message)
-
         else
           `git checkout #{build}`
         end

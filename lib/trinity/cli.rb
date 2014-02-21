@@ -13,6 +13,7 @@ module Trinity
         :failed => 'MERGE_STATUS_FAILED',
         :conflict => 'MERGE_STATUS_CONFLICT',
         :empty => 'MERGE_STATUS_EMPTY_RELATED_BRANCH',
+        :already_merged => 'MERGE_STATUS_ALREADY_MERGED'
     }
 
     @@rebuild_statuses = {
@@ -170,6 +171,11 @@ module Trinity
 
     def merge(project_name, query_id)
 
+      if @master_branch.nil? or @develop_branch.nil?
+        notify('admins', "Error getting git flow config branches: master_branch:#{@master_branch.inspect}, develop_branch:#{develop_branch.inspect}")
+        return false
+      end
+
       log_block('Merge', 'start')
 
       logmsg :info, "Project ID: #{project_name}, Query ID: #{query_id}"
@@ -201,7 +207,9 @@ module Trinity
       `git pull`
 
       logmsg :info, "Merging #{@master_branch} into current branch"
-      `git merge --no-ff origin/#{@master_branch}`
+      merge_status = `git merge --no-ff origin/#{@master_branch}`
+
+      return false if is_conflict(merge_status, ['project' => project_name, 'current_branch' => Trinity::Git.current_branch, 'merging_branch' => "origin/#{@master_branch}"])
 
       logmsg :info, 'Begin merging features'
 
@@ -230,6 +238,7 @@ module Trinity
 
     desc 'rebuild PROJECT_NAME BRANCH_NAME STATUS', 'Helper utility to rebuild build branches'
     method_option :skip_status, :default => false, :type => :boolean, :aliases => '-s', :desc => 'Skip statuses'
+    method_option :force, :default => false, :type => :boolean, :aliases => '-f', :desc => 'Delete branch completely and merge features again. Use with caution.'
 
     def rebuild(project_name, branch, status = 'open')
 
@@ -243,10 +252,18 @@ module Trinity
 
         logmsg :info, 'Preparing build branch'
 
-        `git checkout #{@develop_branch}`
-        `git branch -D #{branch}`
-        `git push origin :#{branch}` if Trinity::Git.is_branch_pushed(branch)
-        `git checkout -b #{branch}`
+        if options[:force]
+          `git checkout #{@master_branch}`
+          `git branch -D #{branch}`
+          `git push origin :#{branch}` if Trinity::Git.is_branch_pushed(branch)
+          `git checkout -b #{branch}`
+        else
+          `git checkout #{branch}`
+        end
+
+        merge_status = `git merge origin/#{@master_branch}`
+
+        `git reset --hard` if is_conflict(merge_status)
 
         issues = Trinity::Redmine.fetch_issues({:project_id => project_name, :fixed_version_id => version_id})
         logmsg :info, "Loaded issues: #{issues.count.to_s}"
@@ -264,6 +281,7 @@ module Trinity
             logmsg :info, "Merging issue: #{issue.id} v#{issue.fixed_version.name}"
 
             ret = merge_feature_branch(issue, version, project_name)
+            handle_merge_status(issue, version, ret)
 
             if status.eql? @@merge_statuses[:conflict]
               t = Trinity::Transition.generate('flow_merge_conflict')
@@ -338,11 +356,13 @@ module Trinity
           t = Trinity::Transition.generate('flow_merge_ok')
         when @@merge_statuses[:conflict]
           t = Trinity::Transition.generate('flow_merge_conflict')
+        when @@merge_statuses[:already_merged]
+          t = Trinity::Transition.generate('flow_merge_null')
         else
           t = Trinity::Transition.generate('flow_merge_ok')
       end
 
-      if t.nil?
+      if t.nil? and !@@merge_statuses[:already_merged]
         logmsg(:fatal, "Could not generate Transition")
         abort
       end
@@ -356,6 +376,7 @@ module Trinity
 
       ret = {
           :project_name => project_name,
+          :version => version,
           :issue => issue,
           :merge_status => @@merge_statuses[:ok],
           :meta => {}
@@ -371,7 +392,25 @@ module Trinity
         branch_merged = `git branch -r --merged`.split("\n").map { |br| br.strip }.select { |br| related_branch.match(br) }
 
         if branch_merged.empty?
-          logmsg :info, "Merging #{issue.id} branch #{related_branch}"
+
+          if issue.respond_to?(:fixed_version)
+            logmsg :info, "Merging branch into build it assigned to"
+
+            current_version_id = version.id
+            issue_version_id = issue.fixed_version.id
+
+            logmsg :debug, "Current build: #{version.name} (id: #{current_version_id})"
+            logmsg :debug, "Merged branch version: #{issue.fixed_version.name} (id: #{issue_version_id})"
+
+            logmsg :debug, "Equal versions: #{current_version_id.eql? issue_version_id}"
+
+            if !current_version_id.eql? issue_version_id
+              `git checkout #{issue.fixed_version.name}`
+            end
+
+          end
+
+          logmsg :info, "Merging #{issue.id} branch #{related_branch} into #{version.name}"
 
           merge_status = `git merge --no-ff #{related_branch}`
 
@@ -394,6 +433,7 @@ module Trinity
 
         else
           logmsg :info, 'Branch already merged. Next...'
+          ret[:merge_status] = @@merge_statuses[:ok]
         end
 
       else
@@ -497,7 +537,7 @@ module Trinity
           logmsg :info, 'Time to QA build.'
 
           `git push origin #{build}`
-          `git checkout #{@master_branch}`
+          `git checkout master`
           `git branch -D #{build}`
 
           logmsg :info, "Deleted branch #{build}"
@@ -602,6 +642,32 @@ module Trinity
           logmsg(:error, msg % [])
         end
       end
+    end
+
+
+    private
+
+    def is_conflict(merge_message, meta=[])
+      logmsg :warn, merge_message
+      conflict_pattern = /CONFLICT|fatal/
+
+      if !conflict_pattern.match(merge_message)
+        return false
+      end
+
+      message = "
+      WARNING!!! Conflict while merging branches.\r\n
+      You have to manually merge branches.\r\n
+
+      #{meta}
+
+      #{merge_message}
+
+      "
+
+      notify('admins', message)
+
+      return true
     end
 
   end

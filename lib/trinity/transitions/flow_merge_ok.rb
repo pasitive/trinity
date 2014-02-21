@@ -17,11 +17,11 @@ module Trinity
 
       def handle(issue)
 
-        logmsg :info, "Version ID: #{version.id}"
+        logmsg :debug, "Version ID: #{version.id}"
 
         # Adding issue into build
         issue.fixed_version_id = self.version.id
-        logmsg :info, "Status ID: #{self.config['redmine']['status']['on_prerelease']}"
+        logmsg :debug, "Status ID: #{self.config['redmine']['status']['on_prerelease']}"
         issue.status_id = self.config['redmine']['status']['on_prerelease']
 
         handle_related_issues(issue)

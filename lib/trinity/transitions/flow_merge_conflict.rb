@@ -13,16 +13,18 @@ module Trinity
       def check(issue, params)
         valid = true
 
-        @meta = params[:meta] if params[:meta]
+        if !issue.respond_to? 'assigned_to'
+          valid = false
+        end
 
-        #logmsg :info, params.inspect
+        @params = params
+        @meta = params[:meta] if params[:meta]
 
         project_name = params[:project_name]
         rejected_with_commit_params = self.config['transitions'][project_name]['rejected_with_commits']
 
         logmsg :debug, "Project name: #{project_name.inspect}"
         logmsg :debug, "Project params: #{rejected_with_commit_params.inspect}"
-
 
         if rejected_with_commit_params.nil?
           logmsg :warn, "project parameters are not set"
@@ -31,12 +33,7 @@ module Trinity
 
         @group_users = Trinity::Redmine::Groups.get_group_users(rejected_with_commit_params['reject_to_group_id'])
 
-        logmsg :debug, @group_users
-
-        #if valid && @group_users.include?(issue.assigned_to.id.to_i)
-        #  logmsg(:info, "No action needed. Assigned to user is a member of right group")
-        #  valid = false
-        #end
+        logmsg :debug, "Group users loaded: #{@group_users}"
 
         valid
       end
@@ -45,23 +42,25 @@ module Trinity
 
         current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets,journals'})
 
-        logmsg :debug, "Current respond_to changesets?: #{current.respond_to?(:changesets)}"
-        logmsg :debug, "Current respond_to journals?: #{current.respond_to?(:journals)}"
+        found = false
 
-        if current.respond_to?(:changesets) and !Trinity::Redmine::Issue.get_last_user_id_from_changesets(current).nil?
-          logmsg :debug, 'Yip, changesets'
-          last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
-          logmsg :debug, "last user id set to: #{last_user_id.inspect}"
-        elsif current.respond_to?(:journals)
-          logmsg :debug, 'Yip, journals'
+        last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
+        self.notes = "Переназначено на сотрудника, который вносил изменения последним."
+        issue.assigned_to_id = last_user_id
+        found = true if !last_user_id.nil?
+
+        if !found
           users = Trinity::Redmine::Issue.filter_users_from_journals_by_group_id(current, @group_users)
           last_user_id = users.sample if users.size > 0
-          logmsg :debug, "last user id set to: #{last_user_id.inspect}"
-        else
-          self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него.\n #{@meta[:merge_message]}"
+          issue.assigned_to_id = last_user_id
+          found = true if !last_user_id.nil?
         end
 
-        self.notes = "Конфликт при слиянии\n\n#{@meta[:merge_message]}"
+        if !found
+          self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него."
+        end
+
+        self.notes += "\r\nКонфликт при слиянии задачи (ветка: #{@meta[:related_branch]}) в билд #{@params[:version].name} \n\n#{@meta[:merge_message]}"
 
         @assign_to_id = last_user_id
 

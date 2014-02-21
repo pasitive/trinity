@@ -340,7 +340,7 @@ module Trinity
 
     def handle_merge_status(issue, version, ret)
 
-      logmsg :debug, "Version to handle: #{version}"
+      logmsg :debug, "Version to handle: #{version.name}"
 
       case ret[:merge_status]
         when @@merge_statuses[:ok]

@@ -340,6 +340,8 @@ module Trinity
 
     def handle_merge_status(issue, version, ret)
 
+      logmsg :debug, "Version to handle: #{version}"
+
       case ret[:merge_status]
         when @@merge_statuses[:ok]
           t = Trinity::Transition.generate('flow_merge_ok')
@@ -386,7 +388,7 @@ module Trinity
 
             logmsg :info, "Merging branch into build it assigned to"
 
-            current_version_id = version.id
+            current_version_id = ret[:version].id
             issue_version_id = issue.fixed_version.id
 
             logmsg :debug, "Current build: #{version.name} (id: #{current_version_id})"
@@ -395,13 +397,13 @@ module Trinity
             logmsg :debug, "Equal versions: #{current_version_id.eql? issue_version_id}"
 
             if !current_version_id.eql? issue_version_id
-              version = ret[:version] = issue.fixed_version
+              ret[:version] = issue.fixed_version
               `git checkout #{issue.fixed_version.name}`
             end
 
           end
 
-          logmsg :info, "Merging #{issue.id} branch #{related_branch} into #{version.name}"
+          logmsg :info, "Merging #{issue.id} branch #{related_branch} into #{ret[:version]}"
 
           merge_status = `git merge --no-ff #{related_branch}`
 

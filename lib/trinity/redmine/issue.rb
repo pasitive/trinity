@@ -31,12 +31,12 @@ module Trinity
 
         def get_last_user_id_from_changesets(issue)
 
+          logmsg :debug, "Issue ##{issue.id} changesets empty? - #{issue.changesets.empty?}"
+
           return nil if issue.changesets.empty?
 
-          logmsg :info, 'Getting last user id from chacngesets'
-
+          logmsg :info, 'Getting last user id from changesets'
           last_user_id = issue.changesets.last.user.id.to_i
-
           logmsg :debug, "Last user id: #{last_user_id.inspect}"
 
           last_user_id
@@ -50,7 +50,13 @@ module Trinity
         end
 
         def filter_users_from_journals_by_group_id(issue, group_users)
+
+          logmsg :debug, "Issue ##{issue.id} journals empty? - #{issue.journals.empty?}"
+
+          return nil if issue.journals.empty?
+
           logmsg :info, 'Getting last user id from journals'
+
           begin
             users = issue.journals.inject([]) do |result, journal|
               result << journal.user.id.to_i if (group_users.include? journal.user.id.to_i)

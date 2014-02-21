@@ -377,29 +377,29 @@ module Trinity
 
       logmsg :info, "Related branch: #{related_branch}"
 
+      if issue.respond_to?(:fixed_version)
+
+        logmsg :info, "Merging branch into build it assigned to"
+
+        current_version_id = ret[:version].id
+        issue_version_id = issue.fixed_version.id
+
+        logmsg :debug, "Current build: #{version.name} (id: #{current_version_id})"
+        logmsg :debug, "Merged branch version: #{issue.fixed_version.name} (id: #{issue_version_id})"
+
+        logmsg :debug, "Equal versions: #{current_version_id.eql? issue_version_id}"
+
+        if !current_version_id.eql? issue_version_id
+          ret[:version] = issue.fixed_version
+          `git checkout #{issue.fixed_version.name}`
+        end
+
+      end
+
       if !related_branch.empty?
 
         logmsg :info, 'Merging branch'
         branch_merged = `git branch -r --merged`.split("\n").map { |br| br.strip }.select { |br| related_branch.match(br) }
-
-        if issue.respond_to?(:fixed_version)
-
-          logmsg :info, "Merging branch into build it assigned to"
-
-          current_version_id = ret[:version].id
-          issue_version_id = issue.fixed_version.id
-
-          logmsg :debug, "Current build: #{version.name} (id: #{current_version_id})"
-          logmsg :debug, "Merged branch version: #{issue.fixed_version.name} (id: #{issue_version_id})"
-
-          logmsg :debug, "Equal versions: #{current_version_id.eql? issue_version_id}"
-
-          if !current_version_id.eql? issue_version_id
-            ret[:version] = issue.fixed_version
-            `git checkout #{issue.fixed_version.name}`
-          end
-
-        end
 
         if branch_merged.empty?
 

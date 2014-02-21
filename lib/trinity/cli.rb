@@ -41,6 +41,16 @@ module Trinity
       super
       # Loading config file
       @config = Trinity::Config.load({:file => options[:config]})
+
+      @master_branch = Trinity::Git.config('gitflow.branch.master')
+      @develop_branch = Trinity::Git.config('gitflow.branch.develop')
+
+      logmsg :debug, "Parameter master_branch is: #{@master_branch}"
+      logmsg :debug, "Parameter develop_branch is: #{@develop_branch}"
+
+      if @master_branch.nil? or @develop_branch.nil?
+        notify('admins', "Error getting git flow config branches: master_branch:#{@master_branch.inspect}, develop_branch:#{@develop_branch.inspect}")
+      end
     end
 
     desc 'version', 'Get version number'
@@ -161,11 +171,8 @@ module Trinity
 
     def merge(project_name, query_id)
 
-      master_branch = Trinity::Git.config('gitflow.branch.master')
-      develop_branch = Trinity::Git.config('gitflow.branch.develop')
-
-      if master_branch.nil? or develop_branch.nil?
-        notify('admins', "Error getting git flow config branches: master_branch:#{master_branch.inspect}, develop_branch:#{develop_branch.inspect}")
+      if @master_branch.nil? or @develop_branch.nil?
+        notify('admins', "Error getting git flow config branches: master_branch:#{@master_branch.inspect}, develop_branch:#{develop_branch.inspect}")
         return false
       end
 
@@ -188,7 +195,7 @@ module Trinity
       end
 
       # Prevent merging to master
-      if Trinity::Git.current_branch.match(master_branch)
+      if Trinity::Git.current_branch.match(@master_branch)
         logmsg :warn, 'Current branch is master. STOP MERGING DIRECTLY TO MASTER BRANCH'
         return false
       end
@@ -199,10 +206,10 @@ module Trinity
       `git branch --set-upstream-to=origin/#{build} #{build}`
       `git pull`
 
-      logmsg :info, 'Merging master into current branch'
-      merge_status = `git merge --no-ff origin/#{master_branch}`
+      logmsg :info, "Merging #{@master_branch} into current branch"
+      merge_status = `git merge --no-ff origin/#{@master_branch}`
 
-      return false if is_conflict(merge_status, ['project' => project_name, 'current_branch' => Trinity::Git.current_branch, 'merging_branch' => "origin/#{master_branch}"])
+      return false if is_conflict(merge_status, ['project' => project_name, 'current_branch' => Trinity::Git.current_branch, 'merging_branch' => "origin/#{@master_branch}"])
 
       logmsg :info, 'Begin merging features'
 
@@ -237,9 +244,6 @@ module Trinity
 
       log_block('Rebuild', 'start')
 
-      master_branch = Trinity::Git.config('gitflow.branch.master')
-      develop_branch = Trinity::Git.config('gitflow.branch.develop')
-
       version = Trinity::Redmine::Version.find_version project_name, branch, status
 
       if !version.nil?
@@ -249,7 +253,7 @@ module Trinity
         logmsg :info, 'Preparing build branch'
 
         if options[:force]
-          `git checkout #{master_branch}`
+          `git checkout #{@master_branch}`
           `git branch -D #{branch}`
           `git push origin :#{branch}` if Trinity::Git.is_branch_pushed(branch)
           `git checkout -b #{branch}`
@@ -257,7 +261,7 @@ module Trinity
           `git checkout #{branch}`
         end
 
-        merge_status = `git merge origin/#{master_branch}`
+        merge_status = `git merge origin/#{@master_branch}`
 
         `git reset --hard` if is_conflict(merge_status)
 
@@ -403,6 +407,7 @@ module Trinity
             if !current_version_id.eql? issue_version_id
               `git checkout #{issue.fixed_version.name}`
             end
+
           end
 
           logmsg :info, "Merging #{issue.id} branch #{related_branch} into #{version.name}"
@@ -428,7 +433,7 @@ module Trinity
 
         else
           logmsg :info, 'Branch already merged. Next...'
-          ret[:merge_status] = @@merge_statuses[:already_merged]
+          ret[:merge_status] = @@merge_statuses[:ok]
         end
 
       else
@@ -489,7 +494,7 @@ module Trinity
         build_pushed = Trinity::Git.is_branch_pushed(build)
         logmsg :info, "Check if build is pushed to origin: #{build_pushed.inspect}"
 
-        build_merged = Trinity::Git.is_branch_merged(build, 'master')
+        build_merged = Trinity::Git.is_branch_merged(build, @master_branch)
         logmsg :info, "Check if build is already merged: #{build_merged.inspect}"
 
         build_has_no_issues = Trinity::Redmine.fetch_issues({:project_id => project_name, :fixed_version_id => version.id.to_i}).count.eql? 0
@@ -541,7 +546,6 @@ module Trinity
                      is ready for QA"
 
           notify('qa', message)
-
         else
           `git checkout #{build}`
         end

@@ -210,7 +210,7 @@ module Trinity
         log_block("Feature #{issue.id} merge", 'start')
 
         ret = merge_feature_branch(issue, version, project_name)
-        handle_merge_status(issue, version, ret)
+        handle_merge_status(issue, ret[:version], ret)
 
         log_block("Feature #{issue.id} merge", 'end')
         sleep 2

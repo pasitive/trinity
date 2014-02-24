@@ -213,11 +213,13 @@ module Trinity
         ret = merge_feature_branch(issue, version, project_name)
         handle_merge_status(issue, ret[:version], ret)
 
+        build = ret[:version]
+
         log_block("Feature #{issue.id} merge", 'end')
         sleep 2
       end
 
-      `git push origin #{ret[:version]}`
+      `git push origin #{build}`
 
       log_block('Merge', 'end')
 

@@ -90,7 +90,7 @@ module Trinity
       end
     end
 
-    desc 'cycle', 'Helper utility to merge branches'
+    desc 'cycle', 'Main workflow cycle'
     method_option :project_name, :required => true, :aliases => '-p', :desc => 'Project name'
     method_option :query_id, :required => true, :aliases => '-q', :desc => 'Query id for ready to QA features'
     method_option :release_locked, :default => false, :aliases => '-r', :desc => 'Release locked versions'
@@ -160,7 +160,6 @@ module Trinity
     desc 'merge PROJECT_NAME QUERY_ID', 'Helper utility to merge branches'
 
     def merge(project_name, query_id)
-
       read_git_flow_config
 
       log_block('Merge', 'start')
@@ -185,7 +184,7 @@ module Trinity
 
       # Prevent merging to master
       if Trinity::Git.current_branch.match(@master_branch)
-        logmsg :warn, 'Current branch is master. STOP MERGING DIRECTLY TO MASTER BRANCH'
+        logmsg :warn, "Current branch is #{@master_branch}. Stop merging directly into #{@master_branch}"
         return false
       end
 
@@ -218,7 +217,7 @@ module Trinity
         sleep 2
       end
 
-      `git push origin #{build}`
+      `git push origin #{ret[:version]}`
 
       log_block('Merge', 'end')
 
@@ -676,5 +675,6 @@ module Trinity
         notify('admins', "Error getting git flow config branches: master_branch:#{@master_branch.inspect}, develop_branch:#{@develop_branch.inspect}")
       end
     end
+
   end
 end

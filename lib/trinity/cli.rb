@@ -57,6 +57,9 @@ module Trinity
           @config['transitions'].each do |project, transitions|
             logmsg(:info, "Processing project: #{project}")
             transitions.each do |tn, params|
+
+              next if tn.eql? "config"
+
               t = Trinity::Transition.generate(tn)
               logmsg(:info, "Processing transition #{t.friendly_name}")
               t.config = @config
@@ -442,6 +445,7 @@ module Trinity
       return ret
     end
 
+
     def prepare_build(project_name, build)
 
       read_git_flow_config
@@ -481,6 +485,13 @@ module Trinity
 
         if version.nil?
           version = Trinity::Redmine.create_version(project_name, build)
+
+          build_suffix = @config['transitions'][project_name]['config']['build_suffix']
+          cf_build_url = version.get_cf(18) # Get version URL Custom field
+          cf_build_url.value = "http://#{build}#{build_suffix}"
+          Trinity::Redmine::Version.prefix = '/'
+          version.save
+
         end
 
         logmsg :info, "Found version: #{version.name}"
@@ -645,6 +656,14 @@ module Trinity
 
 
     private
+
+    def get_project_custom_fields(project_name)
+      #project = Trinity::Redmine::Projects.find(project_name)
+      #buf = JSON.parse(project.description)
+
+      #custom_fields = project.get_cf
+      #custom_fields
+    end
 
     def is_conflict(merge_message, meta=[])
       logmsg :warn, merge_message

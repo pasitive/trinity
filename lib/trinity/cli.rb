@@ -485,13 +485,6 @@ module Trinity
 
         if version.nil?
           version = Trinity::Redmine.create_version(project_name, build)
-
-          build_suffix = @config['transitions'][project_name]['config']['build_suffix']
-          cf_build_url = version.get_cf(18) # Get version URL Custom field
-          cf_build_url.value = "http://#{build}#{build_suffix}"
-          Trinity::Redmine::Version.prefix = '/'
-          version.save
-
         end
 
         logmsg :info, "Found version: #{version.name}"
@@ -500,6 +493,14 @@ module Trinity
           logmsg :fatal, 'No version found or loaded'
           abort
         end
+
+        # Updating version URL
+        build_suffix = @config['transitions'][project_name]['config']['build_suffix']
+        cf_build_url = version.get_cf(18) # Get version URL Custom field
+        cf_build_url.value = "http://#{build}#{build_suffix}"
+        Trinity::Redmine::Version.prefix = '/'
+        version.save
+
 
         build_pushed = Trinity::Git.is_branch_pushed(build)
         logmsg :info, "Check if build is pushed to origin: #{build_pushed.inspect}"

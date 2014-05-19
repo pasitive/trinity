@@ -43,6 +43,9 @@ default:
         query_id: 79 # ID фильтра
 
     tvkinoradio-web:
+      config:
+        shot_suffix: .shot.test.itcreativoff.com
+        build_suffix: .build.test.itcreativoff.com
       assign_to_author:
         query_id: 79
 #      time_to_qa:

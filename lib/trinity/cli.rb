@@ -49,6 +49,59 @@ module Trinity
       p VERSION.to_s
     end
 
+    desc 'tmpreport', 'Report generator tmp'
+
+    def tmpreport(query_id)
+      issues = Trinity::Redmine.fetch_issues_by_filter_id(query_id, {})
+      webdev_users = Trinity::Redmine::Groups.get_group_users(18) #Web development
+
+      logmsg(:info, "Loaded issues: #{issues.count}")
+
+      summary = []
+
+      issues.each do |issue|
+
+        current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets,journals'})
+
+        users = Trinity::Redmine::Issue.filter_users_from_journals_by_group_id(current, webdev_users)
+        last_user_id = users.sample if users.size > 0
+        issue.assigned_to_id = last_user_id
+        found = true if !last_user_id.nil?
+
+        buf = {
+            last_user_id: last_user_id,
+            issue: issue,
+        }
+
+        summary.push(buf);
+
+        # summary[issue.id.to_i] = {last_user_id: last_user_id}
+        puts "##{issue.id}: last_user_id: #{last_user_id}"
+      end
+
+      puts "Summary total items: #{summary.count}"
+
+      summary = summary.group_by { |b| b[:last_user_id] }
+
+      #puts "================="
+      #puts summary[70].count
+      #exit
+
+      u = Trinity::Redmine::Users.find(:all, :params => {:group_id => 18})
+
+      u.each do |user|
+
+        full_name = user.firstname + " " + user.lastname
+
+        if !summary.has_key? user.id.to_i
+          puts "Не найдено задач для пользователя: #{full_name}"
+          next
+        end
+        puts "#{full_name}. Задач закрыто: #{summary[user.id.to_i].count}"
+      end
+
+    end
+
     desc 'transition', 'Utility to help handle issue statuses and assign issues to the employers'
 
     def transition
@@ -112,7 +165,9 @@ module Trinity
 
             versions.each do |version|
               logmsg :info, "Start processing version #{version.name}"
-              release_status = release options[:project_name], version.name
+
+              #release_status = release options[:project_name], version.name
+              release_status = @@release_statuses[:ok]
 
               case release_status
                 when @@release_statuses[:empty_build]
@@ -147,8 +202,29 @@ module Trinity
           else
             logmsg :info, 'No versions to release'
           end
+
+          versions = Trinity::Redmine::Version.fetch_versions(options[:project_name], 'open')
+          # rebuild logic
+          versions.each do |version|
+            # вынести в конфиг
+            forced_rebuild_prop = version.get_cf(20)
+
+            if !forced_rebuild_prop.nil?
+              forced_rebuild_prop_value = forced_rebuild_prop.value
+              case forced_rebuild_prop_value
+                when 'once' then
+                  invoke :rebuild, [options[:project_name], version.name], :force => true, :skip_status => true, :config => options[:config]
+                  Trinity::Redmine::Version.prefix = '/'
+                  forced_rebuild_prop.value = nil
+                  version.save
+              end
+            end
+
+          end
+
         else
           logmsg :info, "It's not time to release"
+
         end
 
         # Merge
@@ -158,6 +234,13 @@ module Trinity
         sleep 60
 
       end
+    end
+
+    desc 'tt', 'tt method'
+    method_option :force, :default => false, :aliases => '-f', :desc => 'Force -t'
+
+    def tt(p1)
+      p "tt(#{p1.inspect}) method with options: #{options.inspect}"
     end
 
     desc 'merge PROJECT_NAME QUERY_ID', 'Helper utility to merge branches'
@@ -229,6 +312,118 @@ module Trinity
       return true
     end
 
+    desc 'gcb PROJECT_NAME', 'Garbage collector for builds'
+
+    def gcb(project_name)
+      regexp = /build_*/
+      remote_branch_list = `git branch -r`.split("\n").map { |n| n.strip }.select { |a| regexp.match(a) }
+      # Normolize
+      remote_branch_list = remote_branch_list.map { |b| b.split('/').drop(1).join }
+
+      #p remote_branch_list
+
+      Trinity::Redmine::Version.prefix = '/projects/' + project_name + '/'
+      buf = Trinity::Redmine::Version.find(:all)
+
+      # Normolize
+      builds = buf.select { |b| b.name.match(/build_*$/) }
+
+      builds_to_delete = []
+      remote_branch_list.each do |build|
+
+        name = build
+        build_obj = builds.select { |b| b.name.match(build) }.first
+
+        if build_obj.nil?
+          p "Build #{name} is in trash. Ready to delete"
+          builds_to_delete.push(':' + name)
+        else
+          if build_obj.status.eql? 'closed'
+            p "Build #{name} has status #{build_obj.status}. Ready to delete"
+            builds_to_delete.push(':' + name)
+          end
+        end
+
+      end
+
+      `git push origin #{builds_to_delete.join(' ')}`
+
+    end
+
+    desc 'gc QUERY_ID', 'Garbage collector'
+
+    def gc(query_id)
+
+      offset = 0
+      limit = 100
+      stat = {
+          :total_issues => 0,
+          :total_branches => 0,
+          :total_builds => 0,
+          :found_remotes_for => 0,
+          :proc => 0, # total issues processed
+          :del => 0, # total branches deleted
+          :not_merged => 0, # total branches bot merged
+          :not_merged_ids => [],
+      }
+
+      regexp = /origin\/feature\/[0-9]+_*/
+      remote_branch_list = `git branch -r`.split("\n").map { |n| n.strip }.select { |a| regexp.match(a) }
+      issue_list = []
+
+      stat[:total_branches] = remote_branch_list.count
+
+      loop do
+        begin
+          buf = Trinity::Redmine.fetch_issues_by_filter_id(query_id, {:offset => offset, :limit => limit})
+          # Normolizing
+          issue_list.push(buf)
+          raise StandardError if buf.count.eql? 0
+        rescue StandardError => e
+          break
+        ensure
+          offset += limit
+          logmsg :info, "--> Increment offset"
+        end
+      end
+
+
+      issue_list.flatten!
+
+      features_to_delete = []
+      remote_branch_list.each do |branch|
+        logmsg :debug, "Processing branch #{branch}"
+        buf = branch.match(/([0-9]+)_*/)
+        related_issue_id = buf[1].to_i
+        issue = issue_list.find { |i| i.id.to_i.eql? related_issue_id }
+        if !issue.nil?
+          stat[:found_remotes_for]+=1
+          branch_merged = !`git branch -r --merged | grep #{related_issue_id}`.split("\n").map { |i| i.strip }.empty?
+          logmsg :debug, "--> Merged?:" + (branch_merged).to_s
+
+          if !branch_merged
+            stat[:not_merged]+=1
+            stat[:not_merged_ids].push(issue.id.to_i)
+          else
+            features_to_delete.push(':' + branch.split('/').drop(1).join('/'))
+          end
+
+          logmsg :debug, "--> for branch #{branch} found CLOSED ##{related_issue_id} (issue status_id: #{issue.status.id})"
+        else
+          #logmsg :warn, "--> NOT found closed issue for branch #{branch}"
+
+        end
+      end
+
+      logmsg :info, "Deleting #{features_to_delete.count} branches: "
+
+      `git push origin #{features_to_delete.join(' ')}`
+
+      stat[:total_issues] = issue_list.count
+
+      p stat
+    end
+
     desc 'rebuild PROJECT_NAME BRANCH_NAME STATUS', 'Helper utility to rebuild build branches'
     method_option :skip_status, :default => false, :type => :boolean, :aliases => '-s', :desc => 'Skip statuses'
     method_option :force, :default => false, :type => :boolean, :aliases => '-f', :desc => 'Delete branch completely and merge features again. Use with caution.'
@@ -252,15 +447,29 @@ module Trinity
           `git branch -D #{branch}`
           `git push origin :#{branch}` if Trinity::Git.is_branch_pushed(branch)
           `git checkout -b #{branch}`
-        else
-          `git checkout #{branch}`
+          `git push origin #{branch}`
         end
+
+        `git checkout #{branch}`
 
         Trinity::Git::fetch
 
         `git pull origin/#{branch}`
         merge_status = `git merge origin/#{@master_branch}`
-        `git reset --hard` if is_conflict(merge_status)
+
+        if is_conflict(merge_status)
+          message = "rebuild conflict while merging master\n#{merge_status}"
+          `git reset --hard` if is_conflict(merge_status)
+          notify('admins', message)
+        end
+
+        # Prevent merging to master
+        if Trinity::Git.current_branch.match(@master_branch)
+          message = "REBUILD: Current branch is #{@master_branch}. Stop merging directly into #{@master_branch}"
+          logmsg :warn, message
+          notify('admins', message)
+          return false
+        end
 
         issues = Trinity::Redmine.fetch_issues({:project_id => project_name, :fixed_version_id => version_id})
         logmsg :info, "Loaded issues: #{issues.count.to_s}"
@@ -444,7 +653,6 @@ module Trinity
 
       return ret
     end
-
 
     def prepare_build(project_name, build)
 
@@ -654,7 +862,6 @@ module Trinity
         end
       end
     end
-
 
     private
 

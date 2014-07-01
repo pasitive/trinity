@@ -11,6 +11,7 @@ gem 'chronic'
 gem 'mail'
 gem 'god'
 gem 'xmpp4r'
+gem 'thor', '>=0.19.1'
 
 #gem 'trinity', '>=0.0.1', :path => '/Users/denisboldinov/Desktop/trinity', :group => :development
 

@@ -14,6 +14,7 @@ module Trinity
         valid = true
 
         if !issue.respond_to? 'assigned_to'
+          logmsg :warn, 'Issue is not assigned to anybody. assigned_to is null'
           valid = false
         end
 

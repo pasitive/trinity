@@ -172,7 +172,8 @@ module Trinity
                   version.delete
                   break
                 else
-                  rebuild options[:project_name], version.name, 'locked'
+                  #rebuild options[:project_name], version.name, 'locked'
+                  invoke :rebuild, [options[:project_name], version.name, 'locked'], :force => true, :skip_status => true, :config => options[:config]
 
                   version_name = version.name
                   release_tag = version_name.split('_').drop(1).join('_')

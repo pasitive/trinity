@@ -58,6 +58,7 @@ module Trinity
 
         issue.priority_id = self.config['redmine']['priority']['critical'].to_i
         issue.notes = self.notes
+        issue.fixed_version_id = ""
         issue.save
 
         issue

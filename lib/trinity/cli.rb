@@ -14,18 +14,18 @@ module Trinity
         :conflict => 'MERGE_STATUS_CONFLICT',
         :empty => 'MERGE_STATUS_EMPTY_RELATED_BRANCH',
         :already_merged => 'MERGE_STATUS_ALREADY_MERGED'
-    }
+    }.freeze
 
     @@rebuild_statuses = {
         :ok => 'REBUILD_STATUS_OK',
         :failed => 'REBUILD_STATUS_FAILED',
-    }
+    }.freeze
 
     @@release_statuses = {
         :ok => 'RELEASE_STATUS_OK',
         :need_rebuild => 'RELEASE_STATUS_NEED_REBUILD',
         :empty_build => 'RELEASE_STATUS_EMPTY_BUILD',
-    }
+    }.freeze
 
     TYPE_BLOCKS = "blocks"
     TYPE_BLOCKED = "blocked"
@@ -156,10 +156,8 @@ module Trinity
       loop do #Global workflow loop
 
         if time_to_release or options[:release_locked]
-
           logmsg :info, "Time to release: #{Time.now.to_s}"
           versions = Trinity::Redmine::Version.fetch_versions(options[:project_name], 'locked')
-
           if !versions.count.eql? 0
             logmsg :info, 'Start processing versions'
 
@@ -202,28 +200,28 @@ module Trinity
           else
             logmsg :info, 'No versions to release'
           end
-
-          versions = Trinity::Redmine::Version.fetch_versions(options[:project_name], 'open')
-          # rebuild logic
-          versions.each do |version|
-            # вынести в конфиг
-            forced_rebuild_prop = version.get_cf(20)
-
-            if !forced_rebuild_prop.nil?
-              forced_rebuild_prop_value = forced_rebuild_prop.value
-              case forced_rebuild_prop_value
-                when 'once' then
-                  invoke :rebuild, [options[:project_name], version.name], :force => true, :skip_status => true, :config => options[:config]
-                  Trinity::Redmine::Version.prefix = '/'
-                  forced_rebuild_prop.value = nil
-                  version.save
-              end
-            end
-
-          end
-
         else
           logmsg :info, "It's not time to release"
+        end
+
+        # Custom build operations
+        versions = Trinity::Redmine::Version.fetch_versions(options[:project_name], 'open')
+
+        # rebuild logic
+        versions.each do |version|
+          # @TODO вынести forced_rebuild_prop в конфиг
+          forced_rebuild_prop = version.get_cf(20)
+
+          if !forced_rebuild_prop.nil?
+            forced_rebuild_prop_value = forced_rebuild_prop.value
+            case forced_rebuild_prop_value
+              when 'once' then
+                invoke :rebuild, [options[:project_name], version.name], :force => true, :skip_status => true, :config => options[:config]
+                Trinity::Redmine::Version.prefix = '/'
+                forced_rebuild_prop.value = nil
+                version.save
+            end
+          end
 
         end
 

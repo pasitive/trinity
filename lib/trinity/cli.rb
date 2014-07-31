@@ -138,7 +138,9 @@ module Trinity
           notify('admins', msg)
           sleep 60
         rescue Exception => e
-          logmsg(:error, "#{e.message} #{e.backtrace}")
+          msg = "#{e.message} #{e.backtrace}"
+          logmsg(:error, msg)
+          notify('admins', msg)
         ensure
           puts "Sleep for a while..."
           sleep 30

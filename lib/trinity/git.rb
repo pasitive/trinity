@@ -2,6 +2,10 @@ module Trinity
   class Git
     class << self
 
+      def fetch
+        `git fetch --all`
+      end
+
       def status
         `git status`
       end
@@ -13,8 +17,9 @@ module Trinity
       end
 
       def find_issue_related_branch(issue)
-        feature_regexp = /origin\/feature\/#{issue.id}_*/
-        `git branch -r`.split("\n").map { |n| n.strip }.select { |a| feature_regexp.match(a) }.join
+        feature_regexp = /origin\/feature\/#{issue.id}[^\d]_*/
+        branches = `git branch -r`.split("\n").map { |n| n.strip }.select { |a| feature_regexp.match(a) }
+        branches
       end
 
       def current_branch

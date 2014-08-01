@@ -14,6 +14,7 @@ module Trinity
         valid = true
 
         if !issue.respond_to? 'assigned_to'
+          logmsg :warn, 'Issue is not assigned to anybody. assigned_to is null'
           valid = false
         end
 
@@ -58,6 +59,7 @@ module Trinity
 
         issue.priority_id = self.config['redmine']['priority']['critical'].to_i
         issue.notes = self.notes
+        issue.fixed_version_id = ""
         issue.save
 
         issue

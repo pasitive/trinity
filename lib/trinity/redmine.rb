@@ -8,6 +8,7 @@ module Trinity
     require 'trinity/redmine/users'
     require 'trinity/redmine/groups'
     require 'trinity/redmine/version'
+    require 'trinity/redmine/projects'
 
     ActiveResource::Base.logger = Logger.new(STDERR)
 

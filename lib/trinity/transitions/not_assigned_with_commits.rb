@@ -10,52 +10,20 @@ module Trinity
 
       def check(issue, params)
         valid = true
-
-        @current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets'})
-
-        if !@current.respond_to? 'assigned_to'
-          self.notes = "Issue #{issue.id} is not responding to assigned_to"
-          logmsg(:warn, self.notes)
-          valid = false
-        end
-
-        if valid && (!@current.respond_to? 'changesets')
-          self.notes = "Issue #{issue.id} is not responding to changesets"
-          logmsg(:warn, self.notes)
-          valid = false
-        end
-
-
-        if valid && (issue.assigned_to.id.to_i.eql? @current.changesets.first.user.id.to_i)
-          logmsg(:warn, "Issue #{issue.id} already assigned to first commiter")
-          valid = false
-        end
-
         valid
       end
 
       def handle(issue)
 
-        msg = "#{issue.id};"
+        current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets,journals'})
 
-        self.notes = "Исполнителем задачи #{self.issue_link(issue)} назначен автор первого коммита."
+        last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
 
-        issue.assigned_to_id = @current.changesets.first.user.id
-        msg += "Assigned to: #{@current.changesets.first.user.id};"
-        issue.notes = self.notes
-        msg += "Notes: #{self.notes}"
-        logmsg(:info, msg)
-
-        issue.save
-
-        author = Trinity::Redmine::Users.find(@current.changesets.first.user.id)
-
-        Trinity.contact(:jabber) do |c|
-          c.name = author.login
-          c.to_jid = author.mail
+        if !last_user_id.nil?
+          issue.notes = "Установлен статус В работе, т.к. к задаче были прикреплены коммиты."
+          issue.status_id = self.config['redmine']['status']['in_progress'].to_i
+          issue.save
         end
-
-        self.notify << author.login
 
         issue
       end

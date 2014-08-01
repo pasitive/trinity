@@ -1,6 +1,7 @@
 module Trinity
   module Redmine
     class Version < RestAPI
+
       class << self
 
         def create_version(project_name, name)

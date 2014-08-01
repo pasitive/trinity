@@ -7,4 +7,7 @@ module Trinity
 
   class NoSuchTransitionError < StandardError
   end
+
+  class NoSuchCustomFieldError < StandardError
+  end
 end

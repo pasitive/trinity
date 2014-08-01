@@ -599,7 +599,7 @@ module Trinity
 
       # If issue has ONLY 1 branch - merge it.
       # Otherwise message about it into related issue
-      if related_branches.size.to_i == 1
+      if related_branches.size.to_i <= 1
         related_branch = related_branches.join
         logmsg :info, "Related branch: #{related_branch}"
 

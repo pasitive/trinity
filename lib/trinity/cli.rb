@@ -13,7 +13,8 @@ module Trinity
         :failed => 'MERGE_STATUS_FAILED',
         :conflict => 'MERGE_STATUS_CONFLICT',
         :empty => 'MERGE_STATUS_EMPTY_RELATED_BRANCH',
-        :already_merged => 'MERGE_STATUS_ALREADY_MERGED'
+        :already_merged => 'MERGE_STATUS_ALREADY_MERGED',
+        :duplicate_branch => 'MERGE_STATUS_DUPLICATE_BRANCH',
     }.freeze
 
     @@rebuild_statuses = {
@@ -566,12 +567,16 @@ module Trinity
           t = Trinity::Transition.generate('flow_merge_conflict')
         when @@merge_statuses[:already_merged]
           t = Trinity::Transition.generate('flow_merge_null')
+        when @@merge_statuses[:duplicate_branch]
+          t = Trinity::Transition.generate('flow_merge_duplicate')
         else
           t = Trinity::Transition.generate('flow_merge_ok')
       end
 
       if t.nil? and !@@merge_statuses[:already_merged]
-        logmsg(:fatal, "Could not generate Transition")
+        msg = "Could not generate Transition"
+        logmsg(:fatal, msg)
+        notify('admins', msg)
         abort
       end
 
@@ -590,64 +595,75 @@ module Trinity
           :meta => {}
       }
 
-      related_branch = Trinity::Git.find_issue_related_branch(issue)
+      related_branches = Trinity::Git.find_issue_related_branch(issue)
 
-      logmsg :info, "Related branch: #{related_branch}"
+      # If issue has ONLY 1 branch - merge it.
+      # Otherwise message about it into related issue
+      if related_branches.size.to_i == 1
+        related_branch = related_branches.join
+        logmsg :info, "Related branch: #{related_branch}"
 
-      if issue.respond_to?(:fixed_version)
+        if issue.respond_to?(:fixed_version)
 
-        logmsg :info, "Merging branch into build it assigned to"
+          logmsg :info, "Merging branch into build it assigned to"
 
-        current_version_id = ret[:version].id
-        issue_version_id = issue.fixed_version.id
+          current_version_id = ret[:version].id
+          issue_version_id = issue.fixed_version.id
 
-        logmsg :debug, "Current build: #{version.name} (id: #{current_version_id})"
-        logmsg :debug, "Merged branch version: #{issue.fixed_version.name} (id: #{issue_version_id})"
+          logmsg :debug, "Current build: #{version.name} (id: #{current_version_id})"
+          logmsg :debug, "Merged branch version: #{issue.fixed_version.name} (id: #{issue_version_id})"
 
-        logmsg :debug, "Equal versions: #{current_version_id.eql? issue_version_id}"
+          logmsg :debug, "Equal versions: #{current_version_id.eql? issue_version_id}"
 
-        if !current_version_id.eql? issue_version_id
-          ret[:version] = issue.fixed_version
-          `git checkout #{issue.fixed_version.name}`
+          if !current_version_id.eql? issue_version_id
+            ret[:version] = issue.fixed_version
+            `git checkout #{issue.fixed_version.name}`
+          end
+
         end
 
-      end
+        if !related_branch.empty?
 
-      if !related_branch.empty?
+          logmsg :info, 'Merging branch'
+          branch_merged = `git branch -r --merged`.split("\n").map { |br| br.strip }.select { |br| related_branch.match(br) }
 
-        logmsg :info, 'Merging branch'
-        branch_merged = `git branch -r --merged`.split("\n").map { |br| br.strip }.select { |br| related_branch.match(br) }
+          if branch_merged.empty?
 
-        if branch_merged.empty?
+            logmsg :info, "Merging #{issue.id} branch #{related_branch} into #{ret[:version].name}"
 
-          logmsg :info, "Merging #{issue.id} branch #{related_branch} into #{ret[:version].name}"
+            merge_status = `git merge --no-ff #{related_branch}`
 
-          merge_status = `git merge --no-ff #{related_branch}`
+            logmsg :info, merge_status
 
-          logmsg :info, merge_status
+            conflict = /CONFLICT|fatal/
 
-          conflict = /CONFLICT|fatal/
+            if conflict.match(merge_status)
+              logmsg :warn, "Error while automerging branch #{related_branch}"
+              logmsg :info, 'Resetting HEAD'
+              `git reset --hard`
+              ret[:merge_status] = @@merge_statuses[:conflict]
+              ret[:meta] = {
+                  :related_branch => related_branch,
+                  :merge_message => merge_status,
+              }
+            else
+              ret[:merge_status] = @@merge_statuses[:ok]
+            end
 
-          if conflict.match(merge_status)
-            logmsg :warn, "Error while automerging branch #{related_branch}"
-            logmsg :info, 'Resetting HEAD'
-            `git reset --hard`
-            ret[:merge_status] = @@merge_statuses[:conflict]
-            ret[:meta] = {
-                :related_branch => related_branch,
-                :merge_message => merge_status,
-            }
           else
+            logmsg :info, 'Branch already merged. Next...'
             ret[:merge_status] = @@merge_statuses[:ok]
           end
 
         else
-          logmsg :info, 'Branch already merged. Next...'
-          ret[:merge_status] = @@merge_statuses[:ok]
+          ret[:merge_status] = @@merge_statuses[:empty]
         end
 
       else
-        ret[:merge_status] = @@merge_statuses[:empty]
+        ret[:merge_status] = @@merge_statuses[:duplicate_branch]
+        ret[:meta] = {
+            :duplicate_branches => related_branches
+        }
       end
 
       ret[:issue] = issue

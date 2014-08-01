@@ -49,6 +49,7 @@ require 'trinity/transitions/flow_merge_conflict'
 require 'trinity/transitions/flow_reject_from_build'
 require 'trinity/transitions/flow_release'
 require 'trinity/transitions/flow_merge_null'
+require 'trinity/transitions/flow_merge_duplicate'
 
 require 'trinity/transitions/tmp_report'
 

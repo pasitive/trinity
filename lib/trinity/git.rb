@@ -18,7 +18,8 @@ module Trinity
 
       def find_issue_related_branch(issue)
         feature_regexp = /origin\/feature\/#{issue.id}[^\d]_*/
-        `git branch -r`.split("\n").map { |n| n.strip }.select { |a| feature_regexp.match(a) }.join
+        branches = `git branch -r`.split("\n").map { |n| n.strip }.select { |a| feature_regexp.match(a) }
+        branches
       end
 
       def current_branch

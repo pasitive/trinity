@@ -39,6 +39,8 @@ module Trinity
 
         found = false
 
+        init_user_id = issue.assigned_to.id
+
         last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
         self.notes = "Переназначено на сотрудника, который вносил изменения последним."
         issue.assigned_to_id = last_user_id
@@ -53,6 +55,7 @@ module Trinity
 
         if !found
           self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него."
+          issue.assigned_to_id = init_user_id
         end
 
         increment_returns_field(issue)

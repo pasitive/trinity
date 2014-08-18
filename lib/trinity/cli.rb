@@ -181,11 +181,14 @@ module Trinity
                   version_name = version.name
                   release_tag = version_name.split('_').drop(1).join('_')
 
-                  `git flow release start #{version_name}`
-                  `git merge --no-ff #{version_name}`
-                  `git flow release finish -m '#{release_tag}' #{version_name}`
-                  `git branch -d #{version_name}`
-                  `git push`
+                  release_status_message = ""
+                  release_status_message += `git flow release start #{version_name}`
+                  release_status_message += `git merge --no-ff #{version_name}`
+                  release_status_message += `git flow release finish -m '#{release_tag}' #{version_name}`
+                  release_status_message += `git branch -d #{version_name}`
+                  release_status_message += `git push`
+
+                  notify('admins', release_status_message)
 
                   issues = Trinity::Redmine.fetch_issues({:project_id => options[:project_name], :fixed_version_id => version.id})
                   issues.select { |i| i.status.id.to_i.eql? @config['redmine']['status']['on_prerelease_ok'] }.each do |issue|

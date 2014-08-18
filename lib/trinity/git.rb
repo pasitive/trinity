@@ -45,7 +45,7 @@ module Trinity
           (key, *values) = line.split('=')
           hsh[key] = values.join('=')
         end
-        hsh[k] if !hsh[kx].nil?
+        hsh[k] if !hsh[k].nil?
       end
     end
   end

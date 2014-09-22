@@ -191,16 +191,16 @@ module Trinity
                   notify('admins', release_status_message)
 
                   issues = Trinity::Redmine.fetch_issues({:project_id => options[:project_name], :fixed_version_id => version.id})
-                  issues.select { |i| i.status.id.to_i.eql? @config['redmine']['status']['on_prerelease_ok'] }.each do |issue|
-                    t = Trinity::Transition.generate('flow_release')
+                  issues.each do |issue|
+                    t = Trinity::Transition.generate('flow_author_check')
                     t.config = @config
                     t.version = version
                     t.handle(issue) if t.check(issue, {})
                   end
 
-                  Trinity::Redmine::Version.prefix = '/'
-                  version.status = 'closed'
-                  version.save
+                  #Trinity::Redmine::Version.prefix = '/'
+                  #version.status = 'closed'
+                  #version.save
               end
 
             end #end processing versions
@@ -265,6 +265,7 @@ module Trinity
       build = prepare_build(project_name, build)
 
       Trinity::Git::fetch
+      Trinity::Git::prune
 
       version = Trinity::Redmine::Version.find_version(project_name, build)
 
@@ -725,9 +726,11 @@ module Trinity
         # Updating version URL
         build_suffix = @config['transitions'][project_name]['config']['build_suffix']
         cf_build_url = version.get_cf(18) # Get version URL Custom field
-        cf_build_url.value = "http://#{build}#{build_suffix}"
-        Trinity::Redmine::Version.prefix = '/'
-        version.save
+        if !cf_build_url.nil?
+          cf_build_url.value = "http://#{build}#{build_suffix}"
+          Trinity::Redmine::Version.prefix = '/'
+          version.save
+        end
 
 
         build_pushed = Trinity::Git.is_branch_pushed(build)

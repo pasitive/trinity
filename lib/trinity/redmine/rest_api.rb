@@ -5,8 +5,9 @@ module Trinity
       # Getting custom fieled
       def get_cf(id=nil)
         unless self.respond_to? 'custom_fields'
-          raise NoSuchCustomFieldError.new("No custom fields")
-          #logmsg :warn, "Version #{self.id} have no custom field with id=#{id}"
+          #raise NoSuchCustomFieldError.new("No custom fields")
+          logmsg :warn, "Version #{self.id} have no custom field with id=#{id}"
+          return nil
         end
 
         return self.custom_fields if id.nil?

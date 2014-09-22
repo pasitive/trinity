@@ -6,6 +6,10 @@ module Trinity
         `git fetch --all`
       end
 
+      def prune
+        `git remote prune origin`
+      end
+
       def status
         `git status`
       end

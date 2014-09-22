@@ -47,7 +47,7 @@ require 'trinity/transitions/rejected_with_commits'
 require 'trinity/transitions/flow_merge_ok'
 require 'trinity/transitions/flow_merge_conflict'
 require 'trinity/transitions/flow_reject_from_build'
-require 'trinity/transitions/flow_release'
+require 'trinity/transitions/flow_author_check'
 require 'trinity/transitions/flow_merge_null'
 require 'trinity/transitions/flow_merge_duplicate'
 

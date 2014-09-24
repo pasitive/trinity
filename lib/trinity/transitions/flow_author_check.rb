@@ -12,6 +12,11 @@ module Trinity
 
       def check(issue, params)
         valid = true
+
+        if valid && (issue.assigned_to.id.eql? issue.author.id)
+          valid = false
+        end
+
         valid
       end
 

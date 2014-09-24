@@ -167,41 +167,36 @@ module Trinity
             versions.each do |version|
               logmsg :info, "Start processing version #{version.name}"
 
+              version_name = version.name
+              release_tag = version_name.split('_').drop(1).join('_')
+
               #release_status = release options[:project_name], version.name
               release_status = @@release_statuses[:ok]
 
-              case release_status
-                when @@release_statuses[:empty_build]
-                  version.delete
-                  break
-                else
-                  #rebuild options[:project_name], version.name, 'locked'
-                  invoke :rebuild, [options[:project_name], version.name, 'locked'], :force => true, :skip_status => true, :config => options[:config]
+              invoke :rebuild, [options[:project_name], version.name, 'locked'], :force => true, :skip_status => true, :config => options[:config]
 
-                  version_name = version.name
-                  release_tag = version_name.split('_').drop(1).join('_')
+              release_status_message = ""
+              release_status_message += `git flow release start #{version_name}`
+              release_status_message += `git merge --no-ff #{version_name}`
+              release_status_message += `git flow release finish -m '#{release_tag}' #{version_name}`
+              release_status_message += `git branch -d #{version_name}`
+              release_status_message += `git push`
 
-                  release_status_message = ""
-                  release_status_message += `git flow release start #{version_name}`
-                  release_status_message += `git merge --no-ff #{version_name}`
-                  release_status_message += `git flow release finish -m '#{release_tag}' #{version_name}`
-                  release_status_message += `git branch -d #{version_name}`
-                  release_status_message += `git push`
+              notify('admins', release_status_message)
 
-                  notify('admins', release_status_message)
-
-                  issues = Trinity::Redmine.fetch_issues({:project_id => options[:project_name], :fixed_version_id => version.id})
-                  issues.each do |issue|
-                    t = Trinity::Transition.generate('flow_author_check')
-                    t.config = @config
-                    t.version = version
-                    t.handle(issue) if t.check(issue, {})
-                  end
-
-                  #Trinity::Redmine::Version.prefix = '/'
-                  #version.status = 'closed'
-                  #version.save
+              issues = Trinity::Redmine.fetch_issues({:project_id => options[:project_name], :fixed_version_id => version.id})
+              issues.each do |issue|
+                t = Trinity::Transition.generate('flow_author_check')
+                t.config = @config
+                t.version = version
+                t.handle(issue) if t.check(issue, {})
               end
+
+              Trinity::Redmine::Version.prefix = '/'
+              version.status = 'closed'
+              version.save
+
+              #rebuild options[:project_name], version.name, 'locked'
 
             end #end processing versions
           else

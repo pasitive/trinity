@@ -40,31 +40,31 @@ module Trinity
 
       def handle(issue)
 
-        #current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets,journals'})
-        #
-        #found = false
-        #
-        #last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
-        #self.notes = "Переназначено на сотрудника, который вносил изменения последним."
-        #issue.assigned_to_id = last_user_id
-        #found = true if !last_user_id.nil?
-        #
+        current = Trinity::Redmine::Issue.find(issue.id, :params => {:include => 'changesets,journals'})
+
+        found = false
+
+        last_user_id = Trinity::Redmine::Issue.get_last_user_id_from_changesets(current)
+        self.notes = "Переназначено на сотрудника, который вносил изменения последним."
+        issue.assigned_to_id = last_user_id
+        found = true if !last_user_id.nil?
+
         #if !found
         #  users = Trinity::Redmine::Issue.filter_users_from_journals_by_group_id(current, @group_users)
         #  last_user_id = users.sample if users.size > 0
         #  issue.assigned_to_id = last_user_id
         #  found = true if !last_user_id.nil?
         #end
-        #
-        #if !found
-        #  self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него."
-        #end
 
-        self.notes = "\r\nКонфликт при слиянии задачи (ветка: #{@meta[:related_branch]}) в билд #{@params[:version].name} \n\n#{@meta[:merge_message]}"
+        if !found
+          self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него."
+        end
 
-        #@assign_to_id = last_user_id
+        self.notes += "\r\nКонфликт при слиянии задачи (ветка: #{@meta[:related_branch]}) в билд #{@params[:version].name} \n\n#{@meta[:merge_message]}"
 
-        #logmsg :debug, "Assign to: #{@assign_to_id.inspect}"
+        @assign_to_id = last_user_id
+
+        logmsg :debug, "Assign to: #{@assign_to_id.inspect}"
 
         set_issue_attributes(issue)
         issue.save
@@ -76,7 +76,7 @@ module Trinity
 
       def set_issue_attributes(issue)
 
-        #issue.assigned_to_id = @assign_to_id
+        issue.assigned_to_id = @assign_to_id
         issue.notes = self.notes
         #issue.priority_id = self.config['redmine']['priority']['critical']
         issue.status_id = self.config['redmine']['status']['reopened'] # Отклонена

@@ -9,7 +9,6 @@ module Trinity
               :project_id => project_name,
               :name => name
           }
-
           begin
             date = Date.parse(name.split('_').drop(1).join('-'))
           rescue ArgumentError => e
@@ -51,6 +50,9 @@ module Trinity
             if v.status.eql? status
               versions << v
             end
+          end
+          if $DEBUG
+            logmsg :debug, versions.inspect
           end
           versions
         end

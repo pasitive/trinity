@@ -58,11 +58,13 @@ module Trinity
 
         if !found
           self.notes = "Мне не удалось найти сотрудника не по коммитам, не по журналу.\nВам необходимо вручную найти в истории нужного сотрудника и переназначить задачу на него."
+          @assign_to_id = current.author.id
+        else
+          @assign_to_id = last_user_id
         end
 
         self.notes += "\r\nКонфликт при слиянии задачи (ветка: #{@meta[:related_branch]}) в билд #{@params[:version].name} \n\n#{@meta[:merge_message]}"
 
-        @assign_to_id = last_user_id
 
         logmsg :debug, "Assign to: #{@assign_to_id.inspect}"
 

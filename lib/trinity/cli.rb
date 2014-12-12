@@ -158,89 +158,82 @@ module Trinity
       logmsg :info, 'Start workflow cycle'
       loop do #Global workflow loop
 
-        if time_to_release or options[:release_locked]
-          logmsg :info, "Time to release: #{Time.now.to_s}"
-          versions = Trinity::Redmine::Version.fetch_versions(options[:project_name], 'locked')
-          if !versions.count.eql? 0
-            logmsg :info, 'Start processing versions'
+        logmsg :info, 'START: Processing locked versions'
+        versions = Trinity::Redmine::Version.fetch_versions(options[:project_name], 'locked')
+        if !versions.count.eql? 0
+          versions.each do |version|
+            logmsg :info, "Start processing version #{version.name}"
 
-            versions.each do |version|
-              logmsg :info, "Start processing version #{version.name}"
+            version_name = version.name
+            release_tag = version_name.split('_').drop(1).join('_')
 
-              version_name = version.name
-              release_tag = version_name.split('_').drop(1).join('_')
+            release_status = @@release_statuses[:ok]
 
-              #release_status = release options[:project_name], version.name
-              release_status = @@release_statuses[:ok]
+            invoke :rebuild, [options[:project_name], version.name, 'locked'],
+                   :force => true,
+                   :skip_status => true,
+                   :config => options[:config]
 
-              invoke :rebuild, [options[:project_name], version.name, 'locked'], :force => true, :skip_status => true, :config => options[:config]
+            release_status_message = ""
+            release_status_message += `git flow release start #{version_name}`
+            release_status_message += `git merge --no-ff #{version_name}`
+            release_status_message += `git flow release finish -m '#{release_tag}' #{version_name}`
+            release_status_message += `git branch -d #{version_name}`
+            release_status_message += `git push`
 
-              release_status_message = ""
-              release_status_message += `git flow release start #{version_name}`
-              release_status_message += `git merge --no-ff #{version_name}`
-              release_status_message += `git flow release finish -m '#{release_tag}' #{version_name}`
-              release_status_message += `git branch -d #{version_name}`
-              release_status_message += `git push`
+            notify('admins', release_status_message)
 
-              notify('admins', release_status_message)
+            issues = Trinity::Redmine.fetch_issues({
+                                                       :project_id => options[:project_name],
+                                                       :fixed_version_id => version.id})
+            issues.each do |issue|
+              t = Trinity::Transition.generate('flow_author_check')
+              t.config = @config
+              t.version = version
+              t.handle(issue) if t.check(issue, {})
+            end
 
-              issues = Trinity::Redmine.fetch_issues({:project_id => options[:project_name], :fixed_version_id => version.id})
-              issues.each do |issue|
-                t = Trinity::Transition.generate('flow_author_check')
-                t.config = @config
-                t.version = version
-                t.handle(issue) if t.check(issue, {})
-              end
+            Trinity::Redmine::Version.prefix = '/'
+            version.status = 'closed'
+            version.save
 
-              Trinity::Redmine::Version.prefix = '/'
-              version.status = 'closed'
-              version.save
-
-              #rebuild options[:project_name], version.name, 'locked'
-
-            end #end processing versions
-          else
-            logmsg :info, 'No versions to release'
-          end
+          end #end processing versions
         else
-          logmsg :info, "It's not time to release"
+          logmsg :info, 'No locked versions'
         end
+        logmsg :info, 'END: Processing locked versions'
 
+
+        logmsg :info, 'START: Processing open versions custom fields'
         # Custom build operations
         versions = Trinity::Redmine::Version.fetch_versions(options[:project_name], 'open')
-
-        # rebuild logic
-        versions.each do |version|
-          # @TODO вынести forced_rebuild_prop в конфиг
-          forced_rebuild_prop = version.get_cf(20)
-
-          if !forced_rebuild_prop.nil?
-            forced_rebuild_prop_value = forced_rebuild_prop.value
-            case forced_rebuild_prop_value
-              when 'once' then
-                invoke :rebuild, [options[:project_name], version.name], :force => true, :skip_status => true, :config => options[:config]
-                Trinity::Redmine::Version.prefix = '/'
-                forced_rebuild_prop.value = nil
-                version.save
+        if !versions.count.eql? 0
+          # rebuild logic
+          versions.each do |version|
+            # @TODO вынести forced_rebuild_prop в конфиг
+            forced_rebuild_prop = version.get_cf(20)
+            if !forced_rebuild_prop.nil?
+              forced_rebuild_prop_value = forced_rebuild_prop.value
+              case forced_rebuild_prop_value
+                when 'once' then
+                  invoke :rebuild, [options[:project_name], version.name], :force => true, :skip_status => true, :config => options[:config]
+                  Trinity::Redmine::Version.prefix = '/'
+                  forced_rebuild_prop.value = nil
+                  version.save
+              end
             end
           end
-
+        else
+          logmsg :info, 'No version with force rebuild=>true'
         end
+        logmsg :info, 'END: Processing open versions custom fields'
 
         # Merge
         merge options[:project_name], options[:query_id]
 
-        logmsg :info, 'Sleep for 60 seconds'
-        sleep 60
-
+        logmsg :info, 'Sleep for 30 seconds'
+        sleep 30
       end
-    end
-
-    desc 'tt', 'tt method'
-    method_option :force, :default => false, :aliases => '-f', :desc => 'Force -t'
-
-    def tt(p1)
-      p "tt(#{p1.inspect}) method with options: #{options.inspect}"
     end
 
     desc 'merge PROJECT_NAME QUERY_ID', 'Helper utility to merge branches'
@@ -272,7 +265,7 @@ module Trinity
       # Prevent merging to master
       if Trinity::Git.current_branch.match(@master_branch)
         logmsg :warn, "Current branch is #{@master_branch}. Stop merging directly into #{@master_branch}"
-        return false
+        `git checkout #{build}`
       end
 
       logmsg :info, "Current branch is: #{Trinity::Git.current_branch}"
@@ -438,16 +431,28 @@ module Trinity
       version = Trinity::Redmine::Version.find_version project_name, branch, status
 
       if !version.nil?
-        logmsg :info, "Found version: #{version.name} (#{version.id}) [#{version.status}]"
+        logmsg :info, "Found version: #{version.name} (id:#{version.id}) [#{version.status}]"
         version_id = version.id.strip.to_i
 
         logmsg :info, 'Preparing build branch'
 
         if options[:force]
+          #logmsg :info, "Checkout #{branch}"
+          `git checkout #{branch}`
+
+          #logmsg :info, "Checkout #{@master_branch}"
           `git checkout #{@master_branch}`
-          `git branch -D #{branch}`
+
+          #logmsg :info, "Deleting local branch #{branch}"
+          `git branch -D #{branch}` if `git branch`.split("\n").map { |b| b.strip }.include?(branch)
+
+          #logmsg :info, "Pushing local branch #{branch}"
           `git push origin :#{branch}` if Trinity::Git.is_branch_pushed(branch)
+
+          #logmsg :info, "Creating new branch #{branch}"
           `git checkout -b #{branch}`
+
+          #logmsg :info, "Pushing to origin #{branch}"
           `git push origin #{branch}`
         end
 
@@ -455,7 +460,7 @@ module Trinity
 
         Trinity::Git::fetch
 
-        `git pull origin/#{branch}`
+        #`git pull origin/#{branch}`
         merge_status = `git merge origin/#{@master_branch}`
 
         if is_conflict(merge_status)
@@ -682,7 +687,7 @@ module Trinity
       }
 
       logmsg :info, 'Fetching changes from origin'
-      `git fetch origin`
+      Trinity::Git.fetch
       logmsg :info, 'Current branch is: %s' % Trinity::Git.current_branch
 
       # Choosing time for new build branch
@@ -701,6 +706,7 @@ module Trinity
         build = Trinity::Git.create_build_branch(date)
         version = Trinity::Redmine.create_version(project_name, build)
         logmsg :info, "Created new build branch #{build_name}"
+        `git push origin #{build_name}`
         return build
       else
         logmsg :info, "We have build #{build}"
@@ -721,73 +727,102 @@ module Trinity
         # Updating version URL
         build_suffix = @config['transitions'][project_name]['config']['build_suffix']
         cf_build_url = version.get_cf(18) # Get version URL Custom field
-        if !cf_build_url.nil?
+        if !cf_build_url.value.nil?
           cf_build_url.value = "http://#{build}#{build_suffix}"
           Trinity::Redmine::Version.prefix = '/'
           version.save
         end
 
+        `git push origin #{build}`
 
-        build_pushed = Trinity::Git.is_branch_pushed(build)
-        logmsg :info, "Check if build is pushed to origin: #{build_pushed.inspect}"
+        build_hash = `git rev-parse origin/#{build}`.to_s
+        master_hash = `git rev-parse origin/#{@master_branch}`.to_s
 
-        build_merged = Trinity::Git.is_branch_merged(build, @master_branch)
-        logmsg :info, "Check if build is already merged: #{build_merged.inspect}"
+        `git checkout #{@master_branch}`
 
-        build_has_no_issues = Trinity::Redmine.fetch_issues({:project_id => project_name, :fixed_version_id => version.id.to_i}).count.eql? 0
-        logmsg :warn, "Build has NO issues: #{build_has_no_issues.inspect}"
+        if (`git branch -r --merged`.split("\n").map { |n| n.strip.gsub('* ', '') }.include?('origin/'+build)) && (build_hash.eql? master_hash)
 
-        if build_pushed
-
-          logmsg :info, 'Build pushed to origin'
-
-          if build_merged and build_has_no_issues
-            # New empty build
-            logmsg :info, "Build #{build} has no issues. Switching to #{build} and start merging features"
-            `git checkout #{build}`
-          elsif !build_merged
-            # New empty build
-            logmsg :info, "Build #{build} is NOT MERGED to master. Switching to #{build} and start merging features"
-            `git checkout #{build}`
-          else
-            logmsg :info, "Build #{build} is MERGED to master and PUSHED to origin"
-
-            `git branch -d #{build}`
-            logmsg :info, "Deleted build branch #{build}"
-
-            build = Trinity::Git.create_build_branch(date)
-            logmsg :info, "Created new build branch: #{build}"
-
-            return build
-          end
-
-        else
-          logmsg :info, 'Build NOT pushed to origin. Now pushing'
-          `git push origin #{build}`
-        end
-
-        time_to_qa = time_to_qa(build, options[:hours_to_qa])
-
-        logmsg :info, "Is it time to QA build?: #{time_to_qa}"
-
-        if time_to_qa
-          logmsg :info, 'Time to QA build.'
-
-          `git push origin #{build}`
-          `git checkout master`
-          `git branch -D #{build}`
-
-          logmsg :info, "Deleted branch #{build}"
-
-          message = "Build <a href='http://r.itcreativoff.com/versions/#{version.id}'>#{build}</a>
-                     is ready for QA"
-
-          notify('qa', message)
-        else
+          logmsg :info, "Build #{build} is NOT MERGED to master. Switching to #{build} and start merging features"
           `git checkout #{build}`
+        else
+          logmsg :info, " Branch #{build} is merged to #{@master_branch}"
+
+          `git branch -d #{build}`
+
+          build = Trinity::Git.create_build_branch(date)
+          logmsg :info, "Created new build branch: #{build}"
+
+          return build
         end
+
+
+        #build_pushed = Trinity::Git.is_branch_pushed(build)
+        #logmsg :info, "Check if build is pushed to origin: #{build_pushed.inspect}"
+        #
+        #build_merged = Trinity::Git.is_branch_merged(build, @master_branch)
+        #logmsg :info, "Check if build is already merged: #{build_merged.inspect}"
+        #
+        #build_has_no_issues = Trinity::Redmine.fetch_issues({:project_id => project_name, :fixed_version_id => version.id.to_i}).count.eql? 0
+        #logmsg :warn, "Build has NO issues: #{build_has_no_issues.inspect}"
+
+        #if build_pushed
+        #
+        #  logmsg :info, 'Build pushed to origin'
+        #
+        #  if Trinity::Git.hash_eql("origin/#{build}", "origin/#{@master_branch}")
+        #    # New empty build
+        #    logmsg :info, "Build #{build} has no issues. Switching to #{build} and start merging features"
+        #    `git checkout #{build}`
+        #  elsif !Trinity::Git.hash_eql("origin/#{build}", "origin/#{@master_branch}")
+        #
+        #  end
+        #
+        #  if build_merged and build_has_no_issues
+        #
+        #  elsif !build_merged
+        #    # New empty build
+        #    logmsg :info, "Build #{build} is NOT MERGED to master. Switching to #{build} and start merging features"
+        #    `git checkout #{build}`
+        #  else
+        #    logmsg :info, "Build #{build} is MERGED to master and PUSHED to origin"
+        #
+        #    `git branch -d #{build}`
+        #    logmsg :info, "Deleted build branch #{build}"
+        #
+        #    build = Trinity::Git.create_build_branch(date)
+        #    logmsg :info, "Created new build branch: #{build}"
+        #
+        #    return build
+        #  end
+        #
+        #else
+        #  logmsg :info, 'Build NOT pushed to origin. Now pushing'
+        #  `git push origin #{build}`
+        #end
+
+        #time_to_qa = time_to_qa(build, options[:hours_to_qa])
+        #
+        #logmsg :info, "Is it time to QA build?: #{time_to_qa}"
+        #
+        #if time_to_qa
+        #  logmsg :info, 'Time to QA build.'
+        #
+        #  `git push origin #{build}`
+        #  `git checkout master`
+        #  `git branch -D #{build}`
+        #
+        #  logmsg :info, "Deleted branch #{build}"
+        #
+        #  message = "Build <a href='http://r.itcreativoff.com/versions/#{version.id}'>#{build}</a>
+        #             is ready for QA"
+        #
+        #  notify('qa', message)
+        #else
+        #  `git checkout #{build}`
+        #end
 
         log_block('Prepare', 'end')
+        #`git checkout #{build}`
         return build
       end
 
@@ -810,14 +845,14 @@ module Trinity
         abort
       end
 
-      logmsg :info, "Date for build: #{date}; Hours to QA: #{options[:hours_to_qa]}"
+      #logmsg :info, "Date for build: #{date}; Hours to QA: #{options[:hours_to_qa]}"
       return date
     end
 
     def time_to_qa(build, hours_diff)
 
-      logmsg :info, "Hours diff: #{hours_diff}"
-      logmsg :info, "Build: #{build}"
+      #logmsg :info, "Hours diff: #{hours_diff}"
+      #logmsg :info, "Build: #{build}"
 
       # Parse date from build name
       buf = build.split('_').drop(1)
@@ -882,14 +917,6 @@ module Trinity
     end
 
     private
-
-    def get_project_custom_fields(project_name)
-      #project = Trinity::Redmine::Projects.find(project_name)
-      #buf = JSON.parse(project.description)
-
-      #custom_fields = project.get_cf
-      #custom_fields
-    end
 
     def is_conflict(merge_message, meta=[])
       logmsg :warn, merge_message

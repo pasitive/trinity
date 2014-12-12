@@ -13,6 +13,8 @@ module Trinity
       def check(issue, params)
         valid = true
 
+
+
         if valid && (issue.assigned_to.id.eql? issue.author.id and issue.status.id.to_i.eql? @config['redmine']['status']['author_check'])
           valid = false
         end

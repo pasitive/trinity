@@ -14,6 +14,12 @@ module Trinity
         `git status`
       end
 
+      def hash_eql(ref1, ref2)
+        h1 = `git rev-parse #{ref1}`.to_s.inspect
+        h2 = `git rev-parse #{ref2}`.to_s.inspect
+        h1.eql? h2
+      end
+
       def create_build_branch(date)
         build = "build_#{date.year}_#{date.month}_#{date.day}_#{date.hour}"
         `git checkout -b #{build}`

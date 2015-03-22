@@ -176,10 +176,25 @@ module Trinity
 
             release_status_message = ""
             release_status_message += `git flow release start #{version_name}`
-            release_status_message += `git merge --no-ff #{version_name}`
-            release_status_message += `git flow release finish -m '#{release_tag}' #{version_name}`
-            release_status_message += `git branch -d #{version_name}`
-            release_status_message += `git push`
+
+            merge_status = `git merge --no-ff #{version_name}`
+
+            if is_conflict(merge_status, [
+                'project' => options[:project_name],
+                'current_branch' => "#{version_name}",
+                'merging_branch' => "origin/#{@master_branch}"
+            ])
+              release_status_message += "Conflict while merging in release branch #{version_name}\r\n"
+              release_status_message += "WARNING! Build not pushed!"
+              release_status_message += "Going to force delete #{version_name}\r\n"
+              release_status_message += `git branch -D #{version_name}`
+              release_status_message += merge_status
+            else
+              release_status_message += `git flow release finish -m '#{release_tag}' #{version_name}`
+              release_status_message += `git branch -d #{version_name}`
+              release_status_message += `git push`
+              release_status_message += merge_status
+            end
 
             notify('admins', release_status_message)
 
@@ -727,7 +742,7 @@ module Trinity
         # Updating version URL
         build_suffix = @config['transitions'][project_name]['config']['build_suffix']
         cf_build_url = version.get_cf(18) # Get version URL Custom field
-        if !cf_build_url.value.nil?
+        if !cf_build_url.nil? and !cf_build_url.value.nil?
           cf_build_url.value = "http://#{build}#{build_suffix}"
           Trinity::Redmine::Version.prefix = '/'
           version.save
@@ -755,74 +770,7 @@ module Trinity
           return build
         end
 
-
-        #build_pushed = Trinity::Git.is_branch_pushed(build)
-        #logmsg :info, "Check if build is pushed to origin: #{build_pushed.inspect}"
-        #
-        #build_merged = Trinity::Git.is_branch_merged(build, @master_branch)
-        #logmsg :info, "Check if build is already merged: #{build_merged.inspect}"
-        #
-        #build_has_no_issues = Trinity::Redmine.fetch_issues({:project_id => project_name, :fixed_version_id => version.id.to_i}).count.eql? 0
-        #logmsg :warn, "Build has NO issues: #{build_has_no_issues.inspect}"
-
-        #if build_pushed
-        #
-        #  logmsg :info, 'Build pushed to origin'
-        #
-        #  if Trinity::Git.hash_eql("origin/#{build}", "origin/#{@master_branch}")
-        #    # New empty build
-        #    logmsg :info, "Build #{build} has no issues. Switching to #{build} and start merging features"
-        #    `git checkout #{build}`
-        #  elsif !Trinity::Git.hash_eql("origin/#{build}", "origin/#{@master_branch}")
-        #
-        #  end
-        #
-        #  if build_merged and build_has_no_issues
-        #
-        #  elsif !build_merged
-        #    # New empty build
-        #    logmsg :info, "Build #{build} is NOT MERGED to master. Switching to #{build} and start merging features"
-        #    `git checkout #{build}`
-        #  else
-        #    logmsg :info, "Build #{build} is MERGED to master and PUSHED to origin"
-        #
-        #    `git branch -d #{build}`
-        #    logmsg :info, "Deleted build branch #{build}"
-        #
-        #    build = Trinity::Git.create_build_branch(date)
-        #    logmsg :info, "Created new build branch: #{build}"
-        #
-        #    return build
-        #  end
-        #
-        #else
-        #  logmsg :info, 'Build NOT pushed to origin. Now pushing'
-        #  `git push origin #{build}`
-        #end
-
-        #time_to_qa = time_to_qa(build, options[:hours_to_qa])
-        #
-        #logmsg :info, "Is it time to QA build?: #{time_to_qa}"
-        #
-        #if time_to_qa
-        #  logmsg :info, 'Time to QA build.'
-        #
-        #  `git push origin #{build}`
-        #  `git checkout master`
-        #  `git branch -D #{build}`
-        #
-        #  logmsg :info, "Deleted branch #{build}"
-        #
-        #  message = "Build <a href='http://r.itcreativoff.com/versions/#{version.id}'>#{build}</a>
-        #             is ready for QA"
-        #
-        #  notify('qa', message)
-        #else
-        #  `git checkout #{build}`
-        #end
-
         log_block('Prepare', 'end')
-        #`git checkout #{build}`
         return build
       end
 

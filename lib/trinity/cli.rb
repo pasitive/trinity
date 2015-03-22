@@ -742,6 +742,7 @@ module Trinity
         # Updating version URL
         build_suffix = @config['transitions'][project_name]['config']['build_suffix']
         cf_build_url = version.get_cf(18) # Get version URL Custom field
+        logmsg :debug, cf_build_url
         if !cf_build_url.nil? and !cf_build_url.value.nil?
           cf_build_url.value = "http://#{build}#{build_suffix}"
           Trinity::Redmine::Version.prefix = '/'

@@ -38,10 +38,17 @@ module Trinity
                          :order => 5, :sym => TYPE_BLOCKS, :reverse => TYPE_BLOCKS},
     }.freeze
 
+
     def initialize(*)
       super
       # Loading config file
       @config = Trinity::Config.load({:file => options[:config]})
+    end
+
+    desc 'foo', 'Get version number'
+
+    def foo
+      puts Trinity::Git.config('gitflow.branch.master1')
     end
 
     desc 'version', 'Get version number'
@@ -135,7 +142,7 @@ module Trinity
             end
           end
         rescue ActiveResource::ServerError => e
-          msg = "We have problem while handling response from Redmine server. Sleep for a while."
+          msg = 'We have problem while handling response from Redmine server. Sleep for a while.'
           notify('admins', msg)
           sleep 60
         rescue Exception => e
@@ -155,12 +162,17 @@ module Trinity
     method_option :release_locked, :default => false, :aliases => '-r', :desc => 'Release locked versions'
 
     def cycle
+
+      read_git_flow_config
+
       logmsg :info, 'Start workflow cycle'
       loop do #Global workflow loop
 
         logmsg :info, 'START: Processing locked versions'
         versions = Trinity::Redmine::Version.fetch_versions(options[:project_name], 'locked')
-        if !versions.count.eql? 0
+        if versions.count.eql? 0
+          logmsg :info, 'No locked versions'
+        else
           versions.each do |version|
             logmsg :info, "Start processing version #{version.name}"
 
@@ -174,47 +186,54 @@ module Trinity
                    :skip_status => true,
                    :config => options[:config]
 
-            release_status_message = ""
+            Trinity::Git::fetch
+
+            release_status_message = "Checkout and pull #{@master_branch} branch from origin\r\n"
+            release_status_message += `git checkout origin/#{@master_branch}`            
+            release_status_message += `git pull`
+
             release_status_message += `git flow release start #{version_name}`
 
             merge_status = `git merge --no-ff #{version_name}`
 
             if is_conflict(merge_status, [
-                'project' => options[:project_name],
-                'current_branch' => "#{version_name}",
-                'merging_branch' => "origin/#{@master_branch}"
-            ])
+                                           'project' => options[:project_name],
+                                           'current_branch' => "#{version_name}",
+                                           'merging_branch' => "origin/#{@master_branch}"
+                                       ])
               release_status_message += "Conflict while merging in release branch #{version_name}\r\n"
-              release_status_message += "WARNING! Build not pushed!"
+              release_status_message += 'WARNING! Build not pushed!'
               release_status_message += "Going to force delete #{version_name}\r\n"
               release_status_message += `git branch -D #{version_name}`
               release_status_message += merge_status
+
+              notify('admins', release_status_message)
+
             else
               release_status_message += `git flow release finish -m '#{release_tag}' #{version_name}`
               release_status_message += `git branch -d #{version_name}`
               release_status_message += `git push`
               release_status_message += merge_status
+
+
+              issues = Trinity::Redmine.fetch_issues({
+                                                         :project_id => options[:project_name],
+                                                         :fixed_version_id => version.id})
+              issues.each do |issue|
+                t = Trinity::Transition.generate('flow_author_check')
+                t.config = @config
+                t.version = version
+                t.handle(issue) if t.check(issue, {})
+              end
+
+              Trinity::Redmine::Version.prefix = '/'
+              version.status = 'closed'
+              version.save
+
             end
 
-            notify('admins', release_status_message)
-
-            issues = Trinity::Redmine.fetch_issues({
-                                                       :project_id => options[:project_name],
-                                                       :fixed_version_id => version.id})
-            issues.each do |issue|
-              t = Trinity::Transition.generate('flow_author_check')
-              t.config = @config
-              t.version = version
-              t.handle(issue) if t.check(issue, {})
-            end
-
-            Trinity::Redmine::Version.prefix = '/'
-            version.status = 'closed'
-            version.save
 
           end #end processing versions
-        else
-          logmsg :info, 'No locked versions'
         end
         logmsg :info, 'END: Processing locked versions'
 
@@ -222,7 +241,9 @@ module Trinity
         logmsg :info, 'START: Processing open versions custom fields'
         # Custom build operations
         versions = Trinity::Redmine::Version.fetch_versions(options[:project_name], 'open')
-        if !versions.count.eql? 0
+        if versions.count.eql? 0
+          logmsg :info, 'No version with force rebuild=>true'
+        else
           # rebuild logic
           versions.each do |version|
             # @TODO вынести forced_rebuild_prop в конфиг
@@ -238,8 +259,6 @@ module Trinity
               end
             end
           end
-        else
-          logmsg :info, 'No version with force rebuild=>true'
         end
         logmsg :info, 'END: Processing open versions custom fields'
 
@@ -870,24 +889,20 @@ module Trinity
     def is_conflict(merge_message, meta=[])
       logmsg :warn, merge_message
       conflict_pattern = /CONFLICT|fatal/
+      if conflict_pattern.match(merge_message)
+        message = "
+          WARNING!!! Conflict while merging branches.\r\n
+          You have to manually merge branches.\r\n
 
-      if !conflict_pattern.match(merge_message)
-        return false
+          #{meta}
+
+          #{merge_message}
+        "
+
+        notify('admins', message)
+        return true
       end
-
-      message = "
-      WARNING!!! Conflict while merging branches.\r\n
-      You have to manually merge branches.\r\n
-
-      #{meta}
-
-      #{merge_message}
-
-      "
-
-      notify('admins', message)
-
-      return true
+      return false
     end
 
     def read_git_flow_config
